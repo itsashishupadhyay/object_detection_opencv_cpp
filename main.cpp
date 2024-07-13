@@ -11,6 +11,6 @@ int main(int argc, char** argv) {
     char** path2image = &argv[1];
     DETECTION_IMAGE_PROCESSING::image_processing my_image;
     my_image.display_image(path2image);
-
+    
     return 0;
 }

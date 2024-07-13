@@ -2,3 +2,4 @@
 build
 Makefile
 *.o
+.DS_Store
