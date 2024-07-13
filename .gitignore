@@ -3,3 +3,6 @@ build
 Makefile
 *.o
 .DS_Store
+/libs/*.cmake
+/libs/cmake_install.cmake
+libs.Makefile
