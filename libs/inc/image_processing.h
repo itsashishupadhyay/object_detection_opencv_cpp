@@ -5,20 +5,14 @@
 extern "C" {
 #endif
 
-namespace DETECTION_IMAGE_PROCESSING
-{
-class image_processing{
+namespace DETECTION_IMAGE_PROCESSING {
+class image_processing {
 
 public:
-    int display_image(char** path2image);
+  int display_image(char **path2image);
+};
 
-
-}; 
-
-}// namespace IMAGE_PROCESSING
-
-
-
+} // namespace DETECTION_IMAGE_PROCESSING
 
 #ifdef __cplusplus
 }

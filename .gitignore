@@ -6,3 +6,4 @@ Makefile
 /libs/*.cmake
 /libs/cmake_install.cmake
 libs.Makefile
+test_images
