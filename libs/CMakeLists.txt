@@ -19,16 +19,14 @@ target_include_directories(my_frame_processing
 
 target_link_libraries(my_frame_processing PUBLIC ${OpenCV_LIBS})
 
+###############################Formatting##########################################
 find_program(CLANG_FORMAT_BIN clang-format)
-
 if (NOT CLANG_FORMAT_BIN)
     message(FATAL_ERROR "clang-format not found. Please install clang-format.")
 endif()
-
 # Collect all .h, .c, and .cpp files in the src and include directories
 file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/*.h)
-
 
 # Set other clang-format options
 set(CLANG_FORMAT_OPTIONS
@@ -40,8 +38,6 @@ set(CLANG_FORMAT_OPTIONS
 
 message(STATUS "Running clang-format...")
 message(STATUS "CMAKE_CURRENT_SOURCE_DIR: ${CMAKE_CURRENT_SOURCE_DIR}")
-
-
 
 # Define the clang-format target
 add_custom_target(format
@@ -62,3 +58,4 @@ add_custom_target(pre_build ALL
     ${SRC_FILES} ${INC_FILES}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
+###################################################################################

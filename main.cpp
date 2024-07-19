@@ -56,14 +56,8 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    if (webcamFlag) {
-        DETECTION_VIDEO_PROCESSING::video_processing my_video;
-        my_video.display_webcam();
-        return 0;
-    }
-
-    if (!imageFlag && !videoFlag) {
-        std::cout << "Error: Either -i/--image or -v/--video flag must be specified.\n";
+    if (!imageFlag && !videoFlag && !webcamFlag) {
+        std::cout << "Error: Either -i/--image or -v/--video or -w/--webcam flag must be specified.\n";
         return 1;
     }
 
@@ -74,6 +68,7 @@ int main(int argc, char** argv) {
         }
         DETECTION_IMAGE_PROCESSING::image_processing my_image;
         my_image.display_image(path2file);
+        my_image.display_image_greyscale(path2file);
     }
 
     if (videoFlag){
@@ -83,6 +78,12 @@ int main(int argc, char** argv) {
         }
         DETECTION_VIDEO_PROCESSING::video_processing my_video;
         my_video.display_video(path2file);
+    }
+
+    if (webcamFlag) {
+        DETECTION_VIDEO_PROCESSING::video_processing my_video;
+        my_video.display_webcam();
+        return 0;
     }
 
     return 0;
