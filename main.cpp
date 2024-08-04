@@ -67,8 +67,7 @@ int main(int argc, char** argv) {
             return 1;
         }
         DETECTION_IMAGE_PROCESSING::image_processing my_image;
-        my_image.display_image(path2file);
-        my_image.display_image_greyscale(path2file);
+        my_image.IMAGE_TEST_BLOCK(path2file);
     }
 
     if (videoFlag){

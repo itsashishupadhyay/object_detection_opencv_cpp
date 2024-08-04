@@ -10,11 +10,16 @@ extern "C" {
 namespace DETECTION_IMAGE_PROCESSING {
 class image_processing {
 private:
-  cv::Mat get_image(char **path2image, bool greyscale);
-
 public:
-  int display_image(char **path2image);
-  int display_image_greyscale(char **path2image);
+  int display_image(cv::Mat image);
+  cv::Mat get_image_from_file(char **path2image);
+  int display_image(cv::Mat &image, std::string displaymsg);
+  cv::Mat image_greyscale(cv::Mat &image);
+  cv::Mat blur_image(const cv::Mat &src, cv::Size kernelSize,
+                     cv::Point anchorPoint);
+  cv::Mat gaussian_blur_image(const cv::Mat &src, cv::Size ksize, double sigmaX,
+                              double sigmaY);
+  int IMAGE_TEST_BLOCK(char **path2image);
 };
 
 } // namespace DETECTION_IMAGE_PROCESSING
