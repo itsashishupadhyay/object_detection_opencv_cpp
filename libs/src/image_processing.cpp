@@ -132,8 +132,6 @@ the blur becomes more pronounced, and the image becomes more smoothed.
     Directional Blur: By setting sigmaX > sigmaY or vice versa, you can create
 directional blur, where the blur is more pronounced in one direction than the
 other.
-
-
 */
 
 cv::Mat image_processing::gaussian_blur_image(const cv::Mat &src,
@@ -157,6 +155,97 @@ cv::Mat image_processing::gaussian_blur_image(const cv::Mat &src,
   return gaussian_blurred_image;
 }
 
+/**
+ * @brief Applies the Canny edge detector to an image.
+ *
+ * The Canny edge detector is a popular edge detection algorithm that uses the
+ * gradient magnitude and direction to detect edges in an image.
+ *
+ * @param config A `canny_config` object containing the parameters for the Canny
+ * edge detector.
+ *
+ * @return The edge map of the input image.
+ *
+ * @details
+ * - The Canny edge detector first applies a Gaussian filter to the input image
+ * to reduce noise.
+ * - Then, it computes the gradient magnitude and direction using the Sobel
+ * operator.
+ * - The gradient magnitude is thresholded using the hysteresis procedure to
+ * determine strong and weak edges.
+ * - Finally, the edge map is constructed by connecting strong edges and
+ * ignoring weak edges.
+ *
+ * The following steps are performed:
+ *
+ * 1. **Gaussian filtering**: The input image is filtered using a Gaussian
+ * filter to reduce noise.
+ * 2. **Gradient computation**: The gradient magnitude and direction are
+ * computed using the Sobel operator.
+ * 3. **Thresholding**: The gradient magnitude is thresholded using the
+ * hysteresis procedure to determine strong and weak edges.
+ * 4. **Edge map construction**: The edge map is constructed by connecting
+ * strong edges and ignoring weak edges.
+ * 5. **Dilation and erosion**: If `dilate` or `erode` is true, the edge map is
+ * refined using dilation or erosion.
+ *
+ * @note
+ * - The choice of `threshold1` and `threshold2` depends on the specific
+ * application and the characteristics of the image. If the thresholds are too
+ * low, the edge detector will be sensitive to noise. If the thresholds are too
+ * high, the edge detector will miss edges.
+ * - The choice of `apertureSize` depends on the specific application and the
+ * characteristics of the image. A larger aperture size means that the Sobel
+ * operator will consider a larger neighborhood of pixels when computing the
+ * gradient.
+ * - The choice of `L2gradient` depends on the specific application and the
+ * characteristics of the image. The L2 norm is more accurate but also more
+ * computationally expensive.
+ * - The choice of `dilate` and `erode` depends on the specific application and
+ * the characteristics of the image. Dilation and erosion can be used to refine
+ * the edge map.
+ * - The choice of `kernel`, `anchor`, `iterations`, `borderType`, and
+ * `borderValue` depends on the specific application and the characteristics of
+ * the image. These parameters are used for dilation and erosion.
+ *
+ * The `canny_config` object contains the following parameters:
+ *
+ * - `image`: The input image.
+ * - `threshold1`: The first threshold for the hysteresis procedure.
+ * - `threshold2`: The second threshold for the hysteresis procedure.
+ * - `apertureSize`: The size of the Sobel operator used to compute the gradient
+ * magnitude and direction.
+ * - `L2gradient`: A flag indicating whether to use the L2 norm (true) or the L1
+ * norm (false) to compute the gradient magnitude.
+ * - `dilate`: A flag indicating whether to apply dilation to the edge map.
+ * - `erode`: A flag indicating whether to apply erosion to the edge map.
+ * - `kernel`: The kernel used for dilation or erosion.
+ * - `anchor`: The anchor point for the kernel.
+ * - `iterations`: The number of iterations for dilation or erosion.
+ * - `borderType`: The border type for the edge map.
+ * - `borderValue`: The border value for the edge map.
+ */
+cv::Mat image_processing::canny_edge_detector(const canny_config &config) {
+  // Create an output edge map
+  cv::Mat edges;
+
+  // Apply Canny edge detector
+  cv::Canny(config.image, edges, config.threshold1, config.threshold2,
+            config.apertureSize, config.L2gradient);
+
+  // Apply dilation or erosion if necessary
+  if (config.dilate) {
+    cv::dilate(edges, edges, config.kernel, config.anchor, config.iterations,
+               config.borderType, config.borderValue);
+  }
+  if (config.erode) {
+    cv::erode(edges, edges, config.kernel, config.anchor, config.iterations,
+              config.borderType, config.borderValue);
+  }
+
+  return edges;
+}
+
 int image_processing::IMAGE_TEST_BLOCK(char **path2image) {
 
   cv::Mat image = get_image_from_file(path2image);
@@ -168,6 +257,45 @@ int image_processing::IMAGE_TEST_BLOCK(char **path2image) {
   cv::Mat gaussian_blurred_image =
       gaussian_blur_image(image, cv::Size(9, 0), 0, 0);
   display_image(gaussian_blurred_image, "Gaussian Blurred Image");
+
+  canny_config config;
+  config.image = image;
+  config.threshold1 = 100;
+  config.threshold2 = 200;
+  config.apertureSize = 3;
+  config.L2gradient = false;
+  config.dilate = false;
+  config.erode = false;
+  config.kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+  config.anchor = cv::Point(-1, -1);
+  config.iterations = 1;
+  config.borderType = cv::BORDER_REFLECT_101;
+  config.borderValue = cv::morphologyDefaultBorderValue();
+
+  cv::Mat edges = canny_edge_detector(config);
+  display_image(edges, "Canny Edge Detector original");
+
+  config.image = blurred_image;
+  edges = canny_edge_detector(config);
+  display_image(edges, "Canny Edge Detector on Blurred Image");
+
+  config.image = gaussian_blurred_image;
+  edges = canny_edge_detector(config);
+  display_image(edges, "Canny Edge Detector on Gaussian Blurred Image");
+
+  config.image = gaussian_blurred_image;
+  config.dilate = true;
+
+  edges = canny_edge_detector(config);
+  display_image(edges,
+                "Canny Edge Detector on Gaussian Blurred Image dilate true");
+
+  config.erode = true;
+  edges = canny_edge_detector(config);
+  display_image(
+      edges,
+      "Canny Edge Detector on Gaussian Blurred Image dilate then erode ,true");
+
   return 0;
 }
 
