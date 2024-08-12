@@ -40,13 +40,17 @@ public:
 
   int display_image(cv::Mat image);
   cv::Mat get_image_from_file(char **path2image);
-  int display_image(cv::Mat &image, std::string displaymsg);
+  int display_image(cv::Mat &image, std::string displaymsg,
+                    std::string put_text_on_image);
   cv::Mat image_greyscale(cv::Mat &image);
   cv::Mat blur_image(const cv::Mat &src, cv::Size kernelSize,
                      cv::Point anchorPoint);
   cv::Mat gaussian_blur_image(const cv::Mat &src, cv::Size ksize, double sigmaX,
                               double sigmaY);
   cv::Mat canny_edge_detector(const canny_config &config);
+  cv::Mat get_top_perspective(cv::Mat &image,
+                              std::vector<cv::Point2f> src_points,
+                              std::vector<cv::Point2f> dst_points);
   int IMAGE_TEST_BLOCK(char **path2image);
 };
 
