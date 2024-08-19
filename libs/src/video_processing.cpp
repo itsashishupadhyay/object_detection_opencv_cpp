@@ -4,10 +4,9 @@
 
 namespace DETECTION_VIDEO_PROCESSING {
 
-int video_processing::display_video(char **path2video) {
-  std::string path = std::string(*path2video);
-  printf("Path to video: %s\n", path.c_str());
-  cv::VideoCapture cap(path);
+int video_processing::display_video(std::string path2video) {
+  printf("Path to video: %s\n", path2video.c_str());
+  cv::VideoCapture cap(path2video);
 
   double fps = cap.get(cv::CAP_PROP_FPS);
   int width = cap.get(cv::CAP_PROP_FRAME_WIDTH);

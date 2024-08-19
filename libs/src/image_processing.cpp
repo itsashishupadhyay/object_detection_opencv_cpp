@@ -1,14 +1,16 @@
 #include "image_processing.h"
+#include <fstream>
 #include <iostream>
+#include <opencv2/core.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
 #include <stdio.h>
 
 namespace DETECTION_IMAGE_PROCESSING {
 
-cv::Mat image_processing::get_image_from_file(char **path2image) {
+cv::Mat image_processing::get_image_from_file(std::string path2image) {
   cv::Mat image;
-  image = cv::imread(std::string(*path2image), cv::IMREAD_COLOR);
+  image = cv::imread(path2image, cv::IMREAD_COLOR);
 
   if (image.empty()) {
     printf("No image data \n");
@@ -279,10 +281,11 @@ cv::Mat image_processing::get_top_perspective(
   cv::Mat corrected_image;
 
   if (src_points.empty() || dst_points.empty()) {
+#ifndef NDEBUG
     std::cout << "Source and destination points not provided caculating points "
                  "for perspective transformation"
               << std::endl;
-
+#endif
     // Convert the image to greyscale
     cv::Mat grey_image = image_greyscale(image);
     cv::Mat gaussian_blurred_image, edges;
@@ -290,7 +293,7 @@ cv::Mat image_processing::get_top_perspective(
 
     gaussian_blurred_image =
         gaussian_blur_image(grey_image, cv::Size(3, 3), 0, 0);
-    display_image(gaussian_blurred_image, "Gaussian Blurred Image");
+    // display_image(gaussian_blurred_image, "Gaussian Blurred Image");
 
     config.image = gaussian_blurred_image;
     config.threshold1 = 100;
@@ -305,7 +308,7 @@ cv::Mat image_processing::get_top_perspective(
     config.borderType = cv::BORDER_REFLECT_101;
     config.borderValue = cv::morphologyDefaultBorderValue();
     edges = canny_edge_detector(config);
-    display_image(edges, "Canny Edge Detector on Gaussian Blurred Image");
+    // display_image(edges, "Canny Edge Detector on Gaussian Blurred Image");
 
     // Find contours in the edge map
     std::vector<std::vector<cv::Point>> contours;
@@ -350,32 +353,36 @@ cv::Mat image_processing::get_top_perspective(
     cv::Mat contour_image = image.clone();
     cv::drawContours(contour_image, contours, max_area_idx,
                      cv::Scalar(0, 255, 0), 2);
-    display_image(contour_image, "Original Contour");
+    // display_image(contour_image, "Original Contour");
 
     // Draw the approximated polygon
     cv::Mat approx_image = image.clone();
     cv::drawContours(approx_image, std::vector<std::vector<cv::Point>>{approx},
                      0, cv::Scalar(255, 0, 0), 2);
-    display_image(approx_image, "Approximated Polygon");
+    // display_image(approx_image, "Approximated Polygon");
 
     // Draw the convex hull (quadrilateral)
     cv::Mat hull_image = image.clone();
     cv::drawContours(hull_image, std::vector<std::vector<cv::Point>>{hull}, 0,
                      cv::Scalar(0, 0, 255), 2);
-    display_image(hull_image, "Convex Hull (Quadrilateral)");
+    // display_image(hull_image, "Convex Hull (Quadrilateral)");
 
     // If the convex hull has 4 sides, use it as is
     std::vector<cv::Point> src_points;
     if (hull.size() == 4) {
       src_points = hull;
+#ifndef NDEBUG
       std::cout << "Convex hull has 4 sides. Using it as source points."
                 << std::endl;
+#endif
     } else {
+#ifndef NDEBUG
       // Find the largest area 4-sided quadrilateral within the convex hull
       std::cout << "Convex hull has " << hull.size()
                 << " sides. Finding the largest area 4-sided quadrilateral "
                    "within the convex hull."
                 << std::endl;
+#endif
       double max_area = 0;
       std::vector<cv::Point> max_quad;
 
@@ -418,7 +425,7 @@ cv::Mat image_processing::get_top_perspective(
       cv::line(quad_image, src_points[i], src_points[(i + 1) % 4],
                cv::Scalar(0, 255, 0), 2);
     }
-    display_image(quad_image, "Perspective Quad");
+    // display_image(quad_image, "Perspective Quad");
 
     cv::Point2f src_points_2f[4];
     for (int i = 0; i < 4; i++) {
@@ -443,10 +450,23 @@ cv::Mat image_processing::get_top_perspective(
     // Warp the image
     cv::Mat warped_image;
     cv::warpPerspective(image, warped_image, matrix, cv::Size(width, height));
-
-    // Display the warped image
-    display_image(warped_image, "Warped Image");
     corrected_image = warped_image;
+
+#ifndef NDEBUG
+    // Display images
+    display_image(gaussian_blurred_image, "Gaussian Blurred Image");
+    display_image(edges, "Canny Edge Detector on Gaussian Blurred Image");
+    display_image(contour_image, "Original Contour");
+    display_image(approx_image, "Approximated Polygon");
+    display_image(hull_image, "Convex Hull (Quadrilateral)");
+    display_image(quad_image, "Perspective Quad");
+    for (int i = 0; i < 4; i++) {
+      std::cout << "Source Point " << i << " X: " << src_points_2f[i].x
+                << " Y: " << src_points[i].y << std::endl;
+    }
+    display_image(warped_image, "Warped Image");
+#endif
+
   } else {
     // TODO: implement the case where src_points and dst_points are provided
   }
@@ -454,7 +474,171 @@ cv::Mat image_processing::get_top_perspective(
   return corrected_image;
 }
 
-int image_processing::IMAGE_TEST_BLOCK(char **path2image) {
+void image_processing::draw_label(cv::Mat &input_image, std::string label,
+                                  int left, int top) {
+
+  // Display the label at the top of the bounding box.
+  int baseLine;
+  cv::Size label_size =
+      cv::getTextSize(label, FONT_FACE, FONT_SCALE, THICKNESS, &baseLine);
+  top = std::max(top, label_size.height);
+  // Top left corner.
+  cv::Point tlc = cv::Point(left, top);
+  // Bottom right corner.
+  cv::Point brc =
+      cv::Point(left + label_size.width, top + label_size.height + baseLine);
+  // Draw white rectangle.
+  rectangle(input_image, tlc, brc, BLACK, cv::FILLED);
+  // Put the label on the black rectangle.
+  putText(input_image, label, cv::Point(left, top + label_size.height),
+          FONT_FACE, FONT_SCALE, YELLOW, THICKNESS);
+
+  return;
+}
+
+std::vector<cv::Mat> image_processing::pre_process_yolo(cv::Mat &image,
+                                                        cv::dnn::Net &net) {
+  // Convert to blob.
+  cv::Mat blob;
+  cv::dnn::blobFromImage(image, blob, 1. / 255.,
+                         cv::Size(INPUT_WIDTH, INPUT_HEIGHT), cv::Scalar(),
+                         true, false);
+
+  net.setInput(blob);
+
+  // Forward propagate.
+  std::vector<cv::Mat> outputs;
+  net.forward(outputs, net.getUnconnectedOutLayersNames());
+
+  return outputs;
+}
+
+cv::Mat image_processing::post_process_yolo(
+    cv::Mat &input_image, std::vector<cv::Mat> &outputs,
+    const std::vector<std::string> &class_name) {
+  // Initialize vectors to hold respective outputs while unwrapping detections.
+  std::vector<int> class_ids;
+  std::vector<float> confidences;
+  std::vector<cv::Rect> boxes;
+  // Resizing factor.
+  float x_factor = input_image.cols / INPUT_WIDTH;
+  float y_factor = input_image.rows / INPUT_HEIGHT;
+  float *data = (float *)outputs[0].data;
+  const int dimensions = 85;
+  // 25200 for default size 640.
+  const int rows = 25200;
+  // Iterate through 25200 detections.
+  for (int i = 0; i < rows; ++i) {
+    float confidence = data[4];
+    // Discard bad detections and continue.
+    if (confidence >= CONFIDENCE_THRESHOLD) {
+      float *classes_scores = data + 5;
+      // Create a 1x85 Mat and store class scores of 80 classes.
+      cv::Mat scores(1, class_name.size(), CV_32FC1, classes_scores);
+      // Perform minMaxLoc and acquire the index of best class  score.
+      cv::Point class_id;
+      double max_class_score;
+      minMaxLoc(scores, 0, &max_class_score, 0, &class_id);
+      // Continue if the class score is above the threshold.
+      if (max_class_score > SCORE_THRESHOLD) {
+        // Store class ID and confidence in the pre-defined respective vectors.
+        confidences.push_back(confidence);
+        class_ids.push_back(class_id.x);
+        // Center.
+        float cx = data[0];
+        float cy = data[1];
+        // Box dimension.
+        float w = data[2];
+        float h = data[3];
+        // Bounding box coordinates.
+        int left = int((cx - 0.5 * w) * x_factor);
+        int top = int((cy - 0.5 * h) * y_factor);
+        int width = int(w * x_factor);
+        int height = int(h * y_factor);
+        // Store good detections in the boxes vector.
+        boxes.push_back(cv::Rect(left, top, width, height));
+      }
+    }
+    // Jump to the next row.
+    data += 85;
+  }
+  // Perform Non-Maximum Suppression and draw predictions.
+  std::vector<int> indices;
+  cv::dnn::NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD,
+                    indices);
+  for (int i = 0; i < indices.size(); i++) {
+    int idx = indices[i];
+    cv::Rect box = boxes[idx];
+    int left = box.x;
+    int top = box.y;
+    int width = box.width;
+    int height = box.height;
+    // Draw bounding box.
+    cv::rectangle(input_image, cv::Point(left, top),
+                  cv::Point(left + width, top + height), BLUE, 3 * THICKNESS);
+    // Get the label for the class name and its confidence.
+    std::string label = cv::format("%.2f", confidences[idx]);
+    label = class_name[class_ids[idx]] + ":" + label;
+#ifndef NDEBUG
+    std::cout << "Detected: " << label << std::endl;
+#endif
+    // Draw class labels.
+    draw_label(input_image, label, left, top);
+  }
+  return input_image;
+}
+
+cv::Mat
+image_processing::run_yolo_obj_detection(cv::Mat &image,
+                                         std::string path2lables = "",
+                                         std::string path2yolo_onnx = "") {
+  if (path2lables.empty()) {
+    auto currentPath = std::filesystem::current_path();
+    path2lables = (currentPath / "weight" / "coco.names").string();
+  }
+  if (path2yolo_onnx.empty()) {
+    auto currentPath = std::filesystem::current_path();
+    path2yolo_onnx = (currentPath / "weight" / "yolov5s.onnx").string();
+  }
+
+  std::vector<std::string> class_list;
+  std::ifstream ifs(path2lables);
+  std::string line;
+  while (getline(ifs, line)) {
+    class_list.push_back(line);
+  }
+  // Load image.
+  cv::Mat frame;
+  frame = image.clone();
+  // Load model.
+  cv::dnn::Net net;
+  net = cv::dnn::readNetFromONNX(path2yolo_onnx);
+  std::vector<cv::Mat> detections; // Process the image.
+  detections = pre_process_yolo(frame, net);
+  cv::Mat frame2 = frame.clone();
+  cv::Mat yolo_img = post_process_yolo(frame2, detections, class_list);
+  // Put efficiency information.
+  // The function getPerfProfile returns the overall time for     inference(t)
+  // and the timings for each of the layers(in layersTimes).
+  std::vector<double> layersTimes;
+  double freq = cv::getTickFrequency() / 1000;
+  double t = net.getPerfProfile(layersTimes) / freq;
+  std::string label = cv::format("Inference time : %.2f ms", t);
+  putText(yolo_img, label, cv::Point(20, 40), FONT_FACE, FONT_SCALE, RED);
+  return yolo_img;
+}
+
+int image_processing::detect_objects_in_image(
+    std::string path2image, std::string object_labes_path = "",
+    std::string onnx_file_path = "") {
+  cv::Mat image = get_image_from_file(path2image);
+  cv::Mat yolo_image =
+      run_yolo_obj_detection(image, object_labes_path, onnx_file_path);
+  display_image(yolo_image, "yolo processed image");
+  return 0;
+}
+
+int image_processing::IMAGE_TEST_BLOCK(std::string path2image) {
 
   cv::Mat image = get_image_from_file(path2image);
   display_image(image, "Original Image");
@@ -501,12 +685,14 @@ int image_processing::IMAGE_TEST_BLOCK(char **path2image) {
   // config.erode = true;
   // edges = canny_edge_detector(config);
   // display_image(
-  //     edges,
-  //     "Canny Edge Detector on Gaussian Blurred Image dilate then erode
-  //     ,true");
+  //     edges, "Canny Edge Detector on Gaussian Blurred Image dilate then
+  //     erode");
 
-  cv::Mat corrected_image = get_top_perspective(image);
+  // cv::Mat corrected_image = get_top_perspective(image);
   // display_image(corrected_image, "Corrected Image");
+
+  // cv::Mat yolo_image = run_yolo_obj_detection(image);
+  // display_image(yolo_image, "yolo processed image");
 
   return 0;
 }

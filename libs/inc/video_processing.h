@@ -1,6 +1,8 @@
 #ifndef VIDEO_PROCESSING_H
 #define VIDEO_PROCESSING_H
 
+#include <string>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -8,7 +10,7 @@ extern "C" {
 namespace DETECTION_VIDEO_PROCESSING {
 class video_processing {
 public:
-  int display_video(char **path2video);
+  int display_video(std::string path2video);
   int display_webcam();
 };
 
