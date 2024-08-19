@@ -1,23 +1,25 @@
 #include "video_processing.h"
+#include "image_processing.h"
 #include <opencv2/opencv.hpp>
 #include <stdio.h>
 
 namespace DETECTION_VIDEO_PROCESSING {
 
 int video_processing::display_video(std::string path2video) {
-  printf("Path to video: %s\n", path2video.c_str());
+
   cv::VideoCapture cap(path2video);
 
   double fps = cap.get(cv::CAP_PROP_FPS);
   int width = cap.get(cv::CAP_PROP_FRAME_WIDTH);
   int height = cap.get(cv::CAP_PROP_FRAME_HEIGHT);
   int totalFrames = cap.get(cv::CAP_PROP_FRAME_COUNT);
-
+#ifndef NDEBUG
+  printf("Path to video: %s\n", path2video.c_str());
   printf("Frame rate: %.2f\n", fps);
   printf("Video width: %d\n", width);
   printf("Video height: %d\n", height);
   printf("Total frames: %d\n", totalFrames);
-
+#endif
   while (true) {
     cv::Mat frame;
     cap.read(frame);
@@ -35,6 +37,63 @@ int video_processing::display_video(std::string path2video) {
     }
   }
 
+  return 0;
+}
+
+int video_processing::run_object_detetion(std::string path2video,
+                                          std::string path2label,
+                                          std::string path2model) {
+
+  printf("Path to video: %s\n", path2video.c_str());
+  cv::VideoCapture cap(path2video);
+
+  double fps = cap.get(cv::CAP_PROP_FPS);
+  int width = cap.get(cv::CAP_PROP_FRAME_WIDTH);
+  int height = cap.get(cv::CAP_PROP_FRAME_HEIGHT);
+  int totalFrames = cap.get(cv::CAP_PROP_FRAME_COUNT);
+#ifndef NDEBUG
+  printf("Frame rate: %.2f\n", fps);
+  printf("Video width: %d\n", width);
+  printf("Video height: %d\n", height);
+  printf("Total frames: %d\n", totalFrames);
+#endif
+  cv::Mat obj_detected_frame;
+  DETECTION_IMAGE_PROCESSING::image_processing each_frame;
+
+  while (true) {
+    cv::Mat frame;
+    cap.read(frame);
+    if (frame.empty()) {
+      printf("No frame data \n");
+      break;
+    }
+
+    double start_time = cv::getTickCount();
+
+    obj_detected_frame =
+        each_frame.run_yolo_obj_detection(frame, path2model, path2label);
+
+    cv::namedWindow("Object detected Video", cv::WINDOW_AUTOSIZE);
+    cv::imshow("Object Video", obj_detected_frame);
+
+    double end_time = cv::getTickCount();
+    double processing_time = (end_time - start_time) / cv::getTickFrequency();
+
+    double wait_time = (1000 / fps) - processing_time * 1000;
+
+#ifndef NDEBUG
+    printf("Processing time: %.2f\n so wait time is %.2f\n", processing_time,
+           wait_time);
+#endif
+
+    if (wait_time > 0) {
+      cv::waitKey(wait_time);
+    }
+
+    if (cv::waitKey(1) == 27) { // Exit if ESC key is pressed
+      break;
+    }
+  }
   return 0;
 }
 

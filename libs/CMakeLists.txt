@@ -27,6 +27,7 @@ endif()
 # Collect all .h, .c, and .cpp files in the src and include directories
 file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 file(GLOB_RECURSE INC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/*.h)
+list(APPEND SRC_FILES ${CMAKE_SOURCE_DIR}/main.cpp)
 
 # Set other clang-format options
 set(CLANG_FORMAT_OPTIONS

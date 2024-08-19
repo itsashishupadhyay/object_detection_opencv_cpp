@@ -14,9 +14,12 @@ cv::Mat image_processing::get_image_from_file(std::string path2image) {
 
   if (image.empty()) {
     printf("No image data \n");
-  } else {
+  }
+#ifndef NDEBUG
+  else {
     std::cout << "Image size is: " << image.size() << std::endl;
   }
+#endif
 
   return image;
 }
@@ -589,42 +592,46 @@ cv::Mat image_processing::post_process_yolo(
 }
 
 cv::Mat
-image_processing::run_yolo_obj_detection(cv::Mat &image,
+image_processing::run_yolo_obj_detection(cv::Mat &frame,
                                          std::string path2lables = "",
                                          std::string path2yolo_onnx = "") {
-  if (path2lables.empty()) {
-    auto currentPath = std::filesystem::current_path();
-    path2lables = (currentPath / "weight" / "coco.names").string();
-  }
-  if (path2yolo_onnx.empty()) {
-    auto currentPath = std::filesystem::current_path();
-    path2yolo_onnx = (currentPath / "weight" / "yolov5s.onnx").string();
-  }
 
-  std::vector<std::string> class_list;
-  std::ifstream ifs(path2lables);
-  std::string line;
-  while (getline(ifs, line)) {
-    class_list.push_back(line);
+  if (class_list.empty() && onnx_net.empty()) {
+#ifndef NDEBUG
+    std::cout << "class_list and onnex net are empty" << std::endl;
+#endif
+    if (path2lables.empty()) {
+      auto currentPath = std::filesystem::current_path();
+      path2lables = (currentPath / "weight" / "coco.names").string();
+    }
+    if (path2yolo_onnx.empty()) {
+      auto currentPath = std::filesystem::current_path();
+      path2yolo_onnx = (currentPath / "weight" / "yolov5s.onnx").string();
+    }
+
+    std::ifstream ifs(path2lables);
+    std::string line;
+    while (getline(ifs, line)) {
+      this->class_list.push_back(line);
+    }
+    // Load model.
+    this->onnx_net = cv::dnn::readNetFromONNX(path2yolo_onnx);
   }
-  // Load image.
-  cv::Mat frame;
-  frame = image.clone();
-  // Load model.
-  cv::dnn::Net net;
-  net = cv::dnn::readNetFromONNX(path2yolo_onnx);
+  cv::Mat obj_detected_frame = frame.clone();
   std::vector<cv::Mat> detections; // Process the image.
-  detections = pre_process_yolo(frame, net);
-  cv::Mat frame2 = frame.clone();
-  cv::Mat yolo_img = post_process_yolo(frame2, detections, class_list);
+  detections = pre_process_yolo(frame, onnx_net);
+  cv::Mat yolo_img =
+      post_process_yolo(obj_detected_frame, detections, class_list);
+#ifndef NDEBUG
   // Put efficiency information.
   // The function getPerfProfile returns the overall time for     inference(t)
   // and the timings for each of the layers(in layersTimes).
   std::vector<double> layersTimes;
   double freq = cv::getTickFrequency() / 1000;
-  double t = net.getPerfProfile(layersTimes) / freq;
+  double t = onnx_net.getPerfProfile(layersTimes) / freq;
   std::string label = cv::format("Inference time : %.2f ms", t);
   putText(yolo_img, label, cv::Point(20, 40), FONT_FACE, FONT_SCALE, RED);
+#endif
   return yolo_img;
 }
 

@@ -12,6 +12,8 @@ class video_processing {
 public:
   int display_video(std::string path2video);
   int display_webcam();
+  int run_object_detetion(std::string path2video, std::string path2label,
+                          std::string path2model);
 };
 
 } // namespace DETECTION_VIDEO_PROCESSING

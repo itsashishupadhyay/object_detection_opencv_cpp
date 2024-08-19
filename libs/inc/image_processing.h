@@ -28,6 +28,10 @@ private:
   cv::Scalar YELLOW = cv::Scalar(0, 255, 255);
   cv::Scalar RED = cv::Scalar(0, 0, 255);
 
+  std::vector<std::string> class_list;
+  cv::dnn::Net onnx_net;
+  ;
+
   void draw_label(cv::Mat &input_image, std::string label, int left, int top);
   std::vector<cv::Mat> pre_process_yolo(cv::Mat &input_image,
                                         cv::dnn::Net &net);
@@ -76,7 +80,7 @@ public:
   cv::Mat get_top_perspective(cv::Mat &image,
                               std::vector<cv::Point2f> src_points,
                               std::vector<cv::Point2f> dst_points);
-  cv::Mat run_yolo_obj_detection(cv::Mat &image, std::string path2lables,
+  cv::Mat run_yolo_obj_detection(cv::Mat &frame, std::string path2lables,
                                  std::string path2yolo_onnx);
 
   int IMAGE_TEST_BLOCK(std::string path2image);
