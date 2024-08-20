@@ -33,7 +33,9 @@ cmake -DCMAKE_BUILD_TYPE=Release ../CMakelists.txt && make all
 ```
 Run using
 ```
-./opencv_cpp_debug -o -l '~/object_detection_opencv_cpp/weight/coco.names' -m '~/object_detection_opencv_cpp/weight/yolov5s.onnx' -p '~/object_detection_opencv_cpp/external_components/yolov5/data/images/bus.jpg'
+./opencv_cpp_debug -i -d -l '~/object_detection_opencv_cpp/weight/coco.names' -m '~/object_detection_opencv_cpp/weight/yolov5s.onnx' -p '~/object_detection_opencv_cpp/external_components/yolov5/data/images/bus.jpg'
+
+./opencv_cpp_debug -w -d -l '~/object_detection_opencv_cpp/weight/coco.names' -m '~/object_detection_opencv_cpp/weight/yolov5s.onnx'
 ```
 
 use the help menu for binary

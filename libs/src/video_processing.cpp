@@ -59,7 +59,7 @@ int video_processing::run_object_detetion(std::string path2video,
 #endif
   cv::Mat obj_detected_frame;
   DETECTION_IMAGE_PROCESSING::image_processing each_frame;
-
+  cv::namedWindow("Object detected Video", cv::WINDOW_AUTOSIZE);
   while (true) {
     cv::Mat frame;
     cap.read(frame);
@@ -73,22 +73,18 @@ int video_processing::run_object_detetion(std::string path2video,
     obj_detected_frame =
         each_frame.run_yolo_obj_detection(frame, path2model, path2label);
 
-    cv::namedWindow("Object detected Video", cv::WINDOW_AUTOSIZE);
     cv::imshow("Object Video", obj_detected_frame);
 
     double end_time = cv::getTickCount();
     double processing_time = (end_time - start_time) / cv::getTickFrequency();
 
-    double wait_time = (1000 / fps) - processing_time * 1000;
-
 #ifndef NDEBUG
-    printf("Processing time: %.2f\n so wait time is %.2f\n", processing_time,
-           wait_time);
+    printf("Processing time: %.2f\n", processing_time);
 #endif
 
-    if (wait_time > 0) {
-      cv::waitKey(wait_time);
-    }
+    // if (wait_time > 0) {
+    //   cv::waitKey(wait_time);
+    // }
 
     if (cv::waitKey(1) == 27) { // Exit if ESC key is pressed
       break;
@@ -117,6 +113,40 @@ int video_processing::display_webcam() {
     }
 
     cv::imshow("Webcam", frame); // Display the frame
+
+    if (cv::waitKey(1) == 27) { // Exit if ESC key is pressed
+      break;
+    }
+  }
+
+  cap.release();           // Release the camera
+  cv::destroyAllWindows(); // Close all windows
+
+  return 0;
+}
+
+int video_processing::run_object_detetion_webcam(std::string path2label,
+                                                 std::string path2model) {
+  cv::VideoCapture cap(0); // Open the default camera
+  if (!cap.isOpened()) {
+    printf("Failed to open the camera\n");
+    return -1;
+  }
+  cv::namedWindow("Webcam Object Detection", cv::WINDOW_NORMAL);
+
+  cv::Mat obj_detected_frame;
+  DETECTION_IMAGE_PROCESSING::image_processing each_frame;
+
+  while (true) {
+    cv::Mat frame;
+    cap.read(frame); // Read a new frame from the camera
+    if (frame.empty()) {
+      printf("Failed to capture frame\n");
+      break;
+    }
+    obj_detected_frame =
+        each_frame.run_yolo_obj_detection(frame, path2label, path2model);
+    cv::imshow("Webcam Object detection", obj_detected_frame);
 
     if (cv::waitKey(1) == 27) { // Exit if ESC key is pressed
       break;

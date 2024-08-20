@@ -14,8 +14,8 @@ void help_menu() {
   std::cout << "  -i, --image       Process an image\n";
   std::cout << "  -w, --webcam      Process the webcam\n";
   std::cout << "  -v, --video       Process a video\n";
-  std::cout << "  -o, --object      Process an object detection on image\n";
-  std::cout << "  -d, --detect      Process an object detection on video\n";
+  std::cout
+      << "  -d, --detect      Process an object detection on video/image\n";
   std::cout << "  -p, --path        Specify the path to the image or video\n";
   std::cout << "  -l, --label       Specify the path to the label file\n";
   std::cout << "  -m, --model       Specify the path to the ONNX model file\n";
@@ -23,9 +23,9 @@ void help_menu() {
   std::cout << "Examples:\n";
   std::cout << "  ./program_name -i -p /path/to/image.jpg\n";
   std::cout << "  ./program_name -v -p /path/to/video.mp4\n";
-  std::cout << "  ./program_name -o -p /path/to/image.jpg -l "
+  std::cout << "  ./program_name -i -d -p /path/to/image.jpg -l "
                "/path/to/label.txt -m /path/to/model.onnx\n";
-  std::cout << "  ./program_name -d -p /path/to/video.mp4 -l "
+  std::cout << "  ./program_name -v -d -p /path/to/video.mp4 -l "
                "/path/to/label.txt -m /path/to/model.onnx\n";
 }
 
@@ -39,7 +39,6 @@ int main(int argc, char **argv) {
   bool pathFlag = false;
   bool webcamFlag = false;
   bool object_detection = false;
-  bool object_detection_video = false;
 
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
@@ -51,10 +50,8 @@ int main(int argc, char **argv) {
       videoFlag = true;
     } else if (arg == "-w" || arg == "--webcam") {
       webcamFlag = true;
-    } else if (arg == "-o" || arg == "--object") {
-      object_detection = true;
     } else if (arg == "-d" || arg == "--detect") {
-      object_detection_video = true;
+      object_detection = true;
     } else if (arg == "-p" || arg == "--path") {
       pathFlag = true;
       if (i + 1 < argc) {
@@ -91,10 +88,9 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (!imageFlag && !videoFlag && !webcamFlag && !object_detection &&
-      !object_detection_video) {
-    std::cout << "Error: Either -i/--image or -v/--video or -w/--webcam or "
-                 "-o/--object or -d/--detect flag must be specified.\n";
+  if (!imageFlag && !videoFlag && !webcamFlag) {
+    std::cout << "Error: Either -i/--image or -v/--video or -w/--webcam flag "
+                 "must be specified.\n";
     return 1;
   }
 
@@ -104,16 +100,12 @@ int main(int argc, char **argv) {
       return 1;
     }
     DETECTION_IMAGE_PROCESSING::image_processing my_image;
-    my_image.IMAGE_TEST_BLOCK(path2file);
-  }
-
-  if (object_detection) {
-    if (!pathFlag) {
-      std::cout << "Error: -o/--object flag requires -p/--path argument.\n";
-      return 1;
+    if (object_detection) {
+      my_image.detect_objects_in_image(path2file, path2label, path2onnxmodel);
+      return 0;
     }
-    DETECTION_IMAGE_PROCESSING::image_processing my_image;
-    my_image.detect_objects_in_image(path2file, path2label, path2onnxmodel);
+    my_image.IMAGE_TEST_BLOCK(path2file);
+    return 0;
   }
 
   if (videoFlag) {
@@ -122,21 +114,22 @@ int main(int argc, char **argv) {
       return 1;
     }
     DETECTION_VIDEO_PROCESSING::video_processing my_video;
-    my_video.display_video(path2file);
-  }
-
-  if (object_detection_video) {
-    if (!pathFlag) {
-      std::cout << "Error: -d/--detect flag requires -p/--path argument.\n";
-      return 1;
+    if (object_detection) {
+      my_video.run_object_detetion(path2file, path2label, path2onnxmodel);
+      return 0;
     }
-    DETECTION_VIDEO_PROCESSING::video_processing my_video;
-    my_video.run_object_detetion(path2file, path2label, path2onnxmodel);
+
+    my_video.display_video(path2file);
+    return 0;
   }
 
   if (webcamFlag) {
-    DETECTION_VIDEO_PROCESSING::video_processing my_video;
-    my_video.display_webcam();
+    DETECTION_VIDEO_PROCESSING::video_processing my_webcam;
+    if (object_detection) {
+      my_webcam.run_object_detetion_webcam(path2label, path2onnxmodel);
+      return 0;
+    }
+    my_webcam.display_webcam();
     return 0;
   }
 

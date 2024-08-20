@@ -14,6 +14,8 @@ public:
   int display_webcam();
   int run_object_detetion(std::string path2video, std::string path2label,
                           std::string path2model);
+  int run_object_detetion_webcam(std::string path2label,
+                                 std::string path2model);
 };
 
 } // namespace DETECTION_VIDEO_PROCESSING
