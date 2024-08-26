@@ -71,7 +71,7 @@ int video_processing::run_object_detetion(std::string path2video,
     double start_time = cv::getTickCount();
 
     obj_detected_frame =
-        each_frame.run_yolo_obj_detection(frame, path2model, path2label);
+        each_frame.run_yolo_obj_detection(frame, path2label, path2model);
 
     cv::imshow("Object Video", obj_detected_frame);
 
