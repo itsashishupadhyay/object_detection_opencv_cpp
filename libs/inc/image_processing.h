@@ -30,7 +30,8 @@ private:
 
   std::vector<std::string> class_list;
   cv::dnn::Net onnx_net;
-  ;
+  bool is_yolov8_model;
+  bool is_yolo26_model;
 
   void draw_label(cv::Mat &input_image, std::string label, int left, int top);
   std::vector<cv::Mat> pre_process_yolo(cv::Mat &input_image,
@@ -39,47 +40,20 @@ private:
   cv::Mat post_process_yolo(cv::Mat &input_image, std::vector<cv::Mat> &outputs,
                             const std::vector<std::string> &class_name);
 
+  cv::Mat post_process_yolov8(cv::Mat &input_image,
+                              std::vector<cv::Mat> &outputs,
+                              const std::vector<std::string> &class_name);
+
+  cv::Mat post_process_yolo26(cv::Mat &input_image,
+                              std::vector<cv::Mat> &outputs,
+                              const std::vector<std::string> &class_name);
+
+  int detect_model_version(const std::vector<cv::Mat> &outputs);
+
 public:
-  typedef struct canny_config {
-    cv::Mat image; // Change from cv::Mat& to cv::Mat
-    double threshold1;
-    double threshold2;
-    int apertureSize;
-    bool L2gradient;
-    bool dilate;
-    bool erode;
-    cv::Mat kernel;
-    cv::Point anchor;
-    int iterations;
-    int borderType;
-    cv::Scalar borderValue;
-
-    // Constructor with default values
-    canny_config(cv::Mat img = cv::Mat(), double thresh1 = 0,
-                 double thresh2 = 0, int aperture = 3, bool l2grad = false,
-                 bool dil = false, bool er = false, cv::Mat kern = cv::Mat(),
-                 cv::Point anch = cv::Point(-1, -1), int iters = 1,
-                 int border = cv::BORDER_REFLECT_101,
-                 cv::Scalar borderVal = cv::morphologyDefaultBorderValue())
-        : image(img), threshold1(thresh1), threshold2(thresh2),
-          apertureSize(aperture), L2gradient(l2grad), dilate(dil), erode(er),
-          kernel(kern), anchor(anch), iterations(iters), borderType(border),
-          borderValue(borderVal) {}
-  } canny_config;
-
-  int display_image(cv::Mat image);
   cv::Mat get_image_from_file(std::string path2image);
   int display_image(cv::Mat &image, std::string displaymsg,
                     std::string put_text_on_image);
-  cv::Mat image_greyscale(cv::Mat &image);
-  cv::Mat blur_image(const cv::Mat &src, cv::Size kernelSize,
-                     cv::Point anchorPoint);
-  cv::Mat gaussian_blur_image(const cv::Mat &src, cv::Size ksize, double sigmaX,
-                              double sigmaY);
-  cv::Mat canny_edge_detector(const canny_config &config);
-  cv::Mat get_top_perspective(cv::Mat &image,
-                              std::vector<cv::Point2f> src_points,
-                              std::vector<cv::Point2f> dst_points);
   cv::Mat run_yolo_obj_detection(cv::Mat &frame, std::string path2lables,
                                  std::string path2yolo_onnx);
 

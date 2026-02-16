@@ -1,10 +1,54 @@
+# IDE
 .vscode
-build
+
+# Build directories
+build/
+build*/
+out/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+*.cmake
+!CMakeLists.txt
+install_manifest.txt
+_deps/
+Testing/
+
+# Ninja build system
+build.ninja
+.ninja_deps
+.ninja_log
+*.ninja
+
+# Make artifacts
 Makefile
-*.o
-.DS_Store
-/libs/*.cmake
-/libs/cmake_install.cmake
 libs.Makefile
-test_images
-.yolo_venv
+
+# Compiled object files
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# macOS
+.DS_Store
+.claude
+
+# Test files
+test_images/
+
+# Python virtual environment
+.yolo_venv/
+__pycache__/
+*.pyc
+
+# Model weights (optional - uncomment if you want to ignore large model files)
+# weight/*.onnx
+# weight/*.pt

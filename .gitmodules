@@ -1,0 +1,7 @@
+[submodule "external_components/yolov5"]
+	path = external_components/yolov5
+	url = https://github.com/ultralytics/yolov5.git
+
+[submodule "external_components/ultralytics"]
+	path = external_components/ultralytics
+	url = https://github.com/ultralytics/ultralytics.git
