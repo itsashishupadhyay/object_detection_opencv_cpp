@@ -4,6 +4,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
+#include <set>
 #include <stdio.h>
 
 namespace DETECTION_IMAGE_PROCESSING {
@@ -42,439 +43,6 @@ int image_processing::display_image(cv::Mat &image, std::string displaymsg = "",
   cv::waitKey(0); // wait for a keystroke in the window
 
   return 0;
-}
-
-cv::Mat image_processing::image_greyscale(cv::Mat &image) {
-
-  cv::Mat grey_image;
-  cv::cvtColor(image, grey_image, cv::COLOR_BGR2GRAY);
-
-  return grey_image;
-}
-
-/**
-  * @brief Function to blur an image
-  * @param src: Source image
-  * @param kernelSize: Size of the kernel to be used for blurring
-  * @param anchorPoint: Anchor point of the kernel. Default is (-1, -1) which
-  * means the anchor is at the kernel center
-  * @return Blurred image
-  *
-  *
-  * NOTE: Size Parameter:
-  * The Size parameter in the blur() function specifies the size of the kernel
-  * (filter) to be used for smoothing. It is defined as Size(w, h), where:
-  *
-  * w is the width of the kernel in pixels (must be a positive odd integer)
-  * h is the height of the kernel in pixels (must be a positive odd integer)
-  *
-  * The kernel size determines the number of neighboring pixels to consider when
-  * calculating the average value for each pixel in the output image. A larger
-  * kernel size will result in more smoothing, while a smaller kernel size will
-  * result in less smoothing. Anchor Point Parameter: The anchor point parameter
-  * in the blur() function specifies the location of the anchor pixel (the pixel
-  * being evaluated) relative to the kernel. It is defined as Point(x, y),
-  where:
-  *
-  * x is the x-coordinate of the anchor point (can be negative or positive)
-  * y is the y-coordinate of the anchor point (can be negative or positive)
-  *
-  * If the anchor point is set to Point(-1, -1), it means that the center of the
-  * kernel is aligned with the pixel being evaluated. This is the default
-  behavior
-  * and is commonly used. If the anchor point is set to a positive value, it
-  means
-  * that the kernel is shifted to the right (for x) or down (for y) by the
-  * specified number of pixels.
-
-*/
-cv::Mat image_processing::blur_image(const cv::Mat &src, cv::Size kernelSize,
-                                     cv::Point anchorPoint = cv::Point(-1,
-                                                                       -1)) {
-  // Ensure kernel size is positive odd integers
-  if (kernelSize.width <= 0 || kernelSize.height <= 0 ||
-      kernelSize.width % 2 == 0 || kernelSize.height % 2 == 0) {
-    kernelSize.width = std::max(1, kernelSize.width - kernelSize.width % 2 + 1);
-    kernelSize.height =
-        std::max(1, kernelSize.height - kernelSize.height % 2 + 1);
-    std::cout << "Warning: Kernel size must be positive odd integers. Updating "
-                 "to nearest positive odd values. "
-              << "width: " << kernelSize.width
-              << " height: " << kernelSize.height << std::endl;
-  }
-
-  // Ensure anchor point is valid
-  if (anchorPoint.x < -1 || anchorPoint.y < -1) {
-    std::cout << "Warning: Invalid anchor point. Defaulting to Point(-1, -1)."
-              << std::endl;
-    anchorPoint = cv::Point(-1, -1);
-  }
-
-  // Apply blur
-  cv::Mat blurred_image;
-  cv::blur(src, blurred_image, kernelSize, anchorPoint);
-
-  return blurred_image;
-}
-
-/**
- * @brief Function to apply Gaussian blur to an image
- * @param src: Source image
- * @param ksize: Size of the kernel to be used for blurring
- * @param sigmaX: Standard deviation of the Gaussian kernel in X direction
- * @param sigmaY: Standard deviation of the Gaussian kernel in Y direction
- * @return Gaussian blurred image
- * @note
- * - A Gaussian kernel is a specific type of kernel that is designed to blur an
- * image by averaging neighboring pixels. The Gaussian kernel is defined by its
- * size, which is typically an odd number (e.g., 3, 5, 7, etc.). The kernel is a
- * square matrix with a symmetrical, bell-shaped distribution of values.
- *
- * - What do SigmaX and SigmaY represent?
- *
- * - sigmaX: The standard deviation of the Gaussian kernel in the X direction. A
- * higher value of sigmaX means that the kernel will be more spread out in the X
- * direction, resulting in more blur in that direction. sigmaY: The standard
- * deviation of the Gaussian kernel in the Y direction. A higher value of sigmaY
- * means that the kernel will be more spread out in the Y direction, resulting
- * in more blur in that direction.
- *
- * - Effects of SigmaX and SigmaY on Gaussian Blur
- * - Here are some key effects of varying sigmaX and sigmaY:
- *
- * - Isotropic Blur: When sigmaX = sigmaY, the blur is isotropic, meaning it is
- * equal in all directions. This is the default behavior when sigmaX and sigmaY
- * are both 0. Anisotropic Blur: When sigmaX ≠ sigmaY, the blur is anisotropic,
- * meaning it is different in different directions. This can be useful for
- * creating motion blur or simulating camera shake. Increased Blur: As sigmaX
- * and sigmaY increase, the blur becomes more pronounced, and the image becomes
- * more smoothed. Directional Blur: By setting sigmaX > sigmaY or vice versa,
- * you can create directional blur, where the blur is more pronounced in one
- * direction than the other.
- */
-cv::Mat image_processing::gaussian_blur_image(const cv::Mat &src,
-                                              cv::Size ksize, double sigmaX = 0,
-                                              double sigmaY = 0) {
-  // Ensure ksize is positive and odd
-  if (ksize.width <= 0 || ksize.height <= 0 || ksize.width % 2 == 0 ||
-      ksize.height % 2 == 0) {
-    ksize.width = std::max(1, ksize.width - ksize.width % 2 + 1);
-    ksize.height = std::max(1, ksize.height - ksize.height % 2 + 1);
-    std::cout << "Warning: Kernel size must be positive and odd. Updating to "
-                 "nearest positive odd values. "
-              << "width: " << ksize.width << " height: " << ksize.height
-              << std::endl;
-  }
-
-  // Apply Gaussian blur
-  cv::Mat gaussian_blurred_image;
-  cv::GaussianBlur(src, gaussian_blurred_image, ksize, sigmaX, sigmaY);
-
-  return gaussian_blurred_image;
-}
-
-/**
- * @brief Applies the Canny edge detector to an image.
- *
- * The Canny edge detector is a popular edge detection algorithm that uses the
- * gradient magnitude and direction to detect edges in an image.
- *
- * @param config A `canny_config` object containing the parameters for the Canny
- * edge detector.
- *
- * @return The edge map of the input image.
- *
- * @details
- * - The Canny edge detector first applies a Gaussian filter to the input image
- * to reduce noise.
- * - Then, it computes the gradient magnitude and direction using the Sobel
- * operator.
- * - The gradient magnitude is thresholded using the hysteresis procedure to
- * determine strong and weak edges.
- * - Finally, the edge map is constructed by connecting strong edges and
- * ignoring weak edges.
- *
- * The following steps are performed:
- *
- * 1. **Gaussian filtering**: The input image is filtered using a Gaussian
- * filter to reduce noise.
- * 2. **Gradient computation**: The gradient magnitude and direction are
- * computed using the Sobel operator.
- * 3. **Thresholding**: The gradient magnitude is thresholded using the
- * hysteresis procedure to determine strong and weak edges.
- * 4. **Edge map construction**: The edge map is constructed by connecting
- * strong edges and ignoring weak edges.
- * 5. **Dilation and erosion**: If `dilate` or `erode` is true, the edge map is
- * refined using dilation or erosion.
- *
- * @note
- * - The choice of `threshold1` and `threshold2` depends on the specific
- * application and the characteristics of the image. If the thresholds are too
- * low, the edge detector will be sensitive to noise. If the thresholds are too
- * high, the edge detector will miss edges.
- * - The choice of `apertureSize` depends on the specific application and the
- * characteristics of the image. A larger aperture size means that the Sobel
- * operator will consider a larger neighborhood of pixels when computing the
- * gradient.
- * - The choice of `L2gradient` depends on the specific application and the
- * characteristics of the image. The L2 norm is more accurate but also more
- * computationally expensive.
- * - The choice of `dilate` and `erode` depends on the specific application and
- * the characteristics of the image. Dilation and erosion can be used to refine
- * the edge map.
- * - The choice of `kernel`, `anchor`, `iterations`, `borderType`, and
- * `borderValue` depends on the specific application and the characteristics of
- * the image. These parameters are used for dilation and erosion.
- *
- * The `canny_config` object contains the following parameters:
- *
- * - `image`: The input image.
- * - `threshold1`: The first threshold for the hysteresis procedure.
- * - `threshold2`: The second threshold for the hysteresis procedure.
- * - `apertureSize`: The size of the Sobel operator used to compute the gradient
- * magnitude and direction.
- * - `L2gradient`: A flag indicating whether to use the L2 norm (true) or the L1
- * norm (false) to compute the gradient magnitude.
- * - `dilate`: A flag indicating whether to apply dilation to the edge map.
- * - `erode`: A flag indicating whether to apply erosion to the edge map.
- * - `kernel`: The kernel used for dilation or erosion.
- * - `anchor`: The anchor point for the kernel.
- * - `iterations`: The number of iterations for dilation or erosion.
- * - `borderType`: The border type for the edge map.
- * - `borderValue`: The border value for the edge map.
- */
-cv::Mat image_processing::canny_edge_detector(const canny_config &config) {
-  // Create an output edge map
-  cv::Mat edges;
-
-  // Apply Canny edge detector
-  cv::Canny(config.image, edges, config.threshold1, config.threshold2,
-            config.apertureSize, config.L2gradient);
-
-  // Apply dilation or erosion if necessary
-  if (config.dilate) {
-    cv::dilate(edges, edges, config.kernel, config.anchor, config.iterations,
-               config.borderType, config.borderValue);
-  }
-  if (config.erode) {
-    cv::erode(edges, edges, config.kernel, config.anchor, config.iterations,
-              config.borderType, config.borderValue);
-  }
-
-  return edges;
-}
-
-/**
- * @brief Applies a perspective transformation to an image to correct the
- * perspective.
- * @param image The input image.
- * @param src_points The source points for the perspective transformation.
- * @param dst_points The destination points for the perspective transformation.
- * @return The corrected image.
- * @details
- * - The function applies a perspective transformation to the input image to
- * correct the perspective.
- * - if source and destination points are not provided, the function calculates
- * the perspective points and appiles the transformation.
- */
-cv::Mat image_processing::get_top_perspective(
-    cv::Mat &image, std::vector<cv::Point2f> src_points = {},
-    std::vector<cv::Point2f> dst_points = {}) {
-
-  cv::Mat corrected_image;
-
-  if (src_points.empty() || dst_points.empty()) {
-#ifndef NDEBUG
-    std::cout << "Source and destination points not provided caculating points "
-                 "for perspective transformation"
-              << std::endl;
-#endif
-    // Convert the image to greyscale
-    cv::Mat grey_image = image_greyscale(image);
-    cv::Mat gaussian_blurred_image, edges;
-    canny_config config;
-
-    gaussian_blurred_image =
-        gaussian_blur_image(grey_image, cv::Size(3, 3), 0, 0);
-    // display_image(gaussian_blurred_image, "Gaussian Blurred Image");
-
-    config.image = gaussian_blurred_image;
-    config.threshold1 = 100;
-    config.threshold2 = 200;
-    config.apertureSize = 3;
-    config.L2gradient = false;
-    config.dilate = true;
-    config.erode = false;
-    config.kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    config.anchor = cv::Point(-1, -1);
-    config.iterations = 1;
-    config.borderType = cv::BORDER_REFLECT_101;
-    config.borderValue = cv::morphologyDefaultBorderValue();
-    edges = canny_edge_detector(config);
-    // display_image(edges, "Canny Edge Detector on Gaussian Blurred Image");
-
-    // Find contours in the edge map
-    std::vector<std::vector<cv::Point>> contours;
-    std::vector<cv::Vec4i> hierarchy;
-
-    cv::findContours(edges, contours, hierarchy, cv::RETR_TREE,
-                     cv::CHAIN_APPROX_SIMPLE);
-
-    // Find the largest contour
-    double max_area = 0;
-    int max_area_idx = -1;
-    for (int i = 0; i < contours.size(); i++) {
-      double area = cv::contourArea(contours[i]);
-      if (area > max_area) {
-        max_area = area;
-        max_area_idx = i;
-      }
-    }
-
-    // Get the largest contour
-    std::vector<cv::Point> largest_contour = contours[max_area_idx];
-
-    // Approximate the contour with a polygon using approxPolyDP
-    // epsilon is set to 2% of the contour's perimeter
-    double epsilon = 0.02 * cv::arcLength(largest_contour, true);
-    std::vector<cv::Point> approx;
-    cv::approxPolyDP(largest_contour, approx, epsilon, true);
-
-    // Find the convex hull of the approximated polygon
-    std::vector<cv::Point> hull;
-    cv::convexHull(approx, hull);
-
-    // Ensure the convex hull has 4 sides (a quadrilateral)
-    if (hull.size() != 4) {
-      // Adjust epsilon and repeat the process
-      epsilon = 0.01 * cv::arcLength(largest_contour, true);
-      cv::approxPolyDP(largest_contour, approx, epsilon, true);
-      cv::convexHull(approx, hull);
-    }
-
-    // Draw the original contour
-    cv::Mat contour_image = image.clone();
-    cv::drawContours(contour_image, contours, max_area_idx,
-                     cv::Scalar(0, 255, 0), 2);
-    // display_image(contour_image, "Original Contour");
-
-    // Draw the approximated polygon
-    cv::Mat approx_image = image.clone();
-    cv::drawContours(approx_image, std::vector<std::vector<cv::Point>>{approx},
-                     0, cv::Scalar(255, 0, 0), 2);
-    // display_image(approx_image, "Approximated Polygon");
-
-    // Draw the convex hull (quadrilateral)
-    cv::Mat hull_image = image.clone();
-    cv::drawContours(hull_image, std::vector<std::vector<cv::Point>>{hull}, 0,
-                     cv::Scalar(0, 0, 255), 2);
-    // display_image(hull_image, "Convex Hull (Quadrilateral)");
-
-    // If the convex hull has 4 sides, use it as is
-    std::vector<cv::Point> src_points;
-    if (hull.size() == 4) {
-      src_points = hull;
-#ifndef NDEBUG
-      std::cout << "Convex hull has 4 sides. Using it as source points."
-                << std::endl;
-#endif
-    } else {
-#ifndef NDEBUG
-      // Find the largest area 4-sided quadrilateral within the convex hull
-      std::cout << "Convex hull has " << hull.size()
-                << " sides. Finding the largest area 4-sided quadrilateral "
-                   "within the convex hull."
-                << std::endl;
-#endif
-      double max_area = 0;
-      std::vector<cv::Point> max_quad;
-
-      // Iterate over all possible combinations of 4 points
-      for (int i = 0; i < hull.size(); i++) {
-        for (int j = i + 1; j < hull.size(); j++) {
-          for (int k = j + 1; k < hull.size(); k++) {
-            for (int l = k + 1; l < hull.size(); l++) {
-              // Calculate the area of the current quadrilateral
-              double area =
-                  0.5 *
-                  std::abs((hull[i].x * hull[j].y + hull[j].x * hull[k].y +
-                            hull[k].x * hull[l].y + hull[l].x * hull[i].y) -
-                           (hull[j].x * hull[i].y + hull[k].x * hull[j].y +
-                            hull[l].x * hull[k].y + hull[i].x * hull[l].y));
-
-              // Update the maximum area quadrilateral if needed
-              if (area > max_area) {
-                max_area = area;
-                max_quad = {hull[i], hull[j], hull[k], hull[l]};
-              }
-            }
-          }
-        }
-      }
-
-      // Use the maximum area quadrilateral as the source points
-      src_points = max_quad;
-    }
-
-    // // get the min rectangle that can be formed from the convex hull
-    // cv::RotatedRect rect = cv::minAreaRect(hull);
-    // cv::Point2f rect_points[4];
-    // rect.points(rect_points);
-
-    // Draw the rotated rectangle
-    cv::Mat quad_image = image.clone();
-
-    for (int i = 0; i < 4; i++) {
-      cv::line(quad_image, src_points[i], src_points[(i + 1) % 4],
-               cv::Scalar(0, 255, 0), 2);
-    }
-    // display_image(quad_image, "Perspective Quad");
-
-    cv::Point2f src_points_2f[4];
-    for (int i = 0; i < 4; i++) {
-      src_points_2f[i] = cv::Point2f(src_points[i].x, src_points[i].y);
-    }
-
-    cv::Point2f dst_points[4];
-    // height and width of the Quadrilateral
-    int width = std::max(cv::norm(src_points_2f[1] - src_points_2f[0]),
-                         cv::norm(src_points_2f[2] - src_points_2f[3]));
-    int height = std::max(cv::norm(src_points_2f[3] - src_points_2f[0]),
-                          cv::norm(src_points_2f[2] - src_points_2f[1]));
-
-    dst_points[0] = cv::Point2f(width, height); // Bottom-right
-    dst_points[1] = cv::Point2f(0, height);     // Bottom-left
-    dst_points[2] = cv::Point2f(0, 0);          // Top-left
-    dst_points[3] = cv::Point2f(width, 0);      // Top-right
-
-    // Get the perspective transform matrix
-    cv::Mat matrix = cv::getPerspectiveTransform(src_points_2f, dst_points);
-
-    // Warp the image
-    cv::Mat warped_image;
-    cv::warpPerspective(image, warped_image, matrix, cv::Size(width, height));
-    corrected_image = warped_image;
-
-#ifndef NDEBUG
-    // Display images
-    display_image(gaussian_blurred_image, "Gaussian Blurred Image");
-    display_image(edges, "Canny Edge Detector on Gaussian Blurred Image");
-    display_image(contour_image, "Original Contour");
-    display_image(approx_image, "Approximated Polygon");
-    display_image(hull_image, "Convex Hull (Quadrilateral)");
-    display_image(quad_image, "Perspective Quad");
-    for (int i = 0; i < 4; i++) {
-      std::cout << "Source Point " << i << " X: " << src_points_2f[i].x
-                << " Y: " << src_points[i].y << std::endl;
-    }
-    display_image(warped_image, "Warped Image");
-#endif
-
-  } else {
-    // TODO: implement the case where src_points and dst_points are provided
-  }
-
-  return corrected_image;
 }
 
 void image_processing::draw_label(cv::Mat &input_image, std::string label,
@@ -565,10 +133,22 @@ cv::Mat image_processing::post_process_yolo(
     // Jump to the next row.
     data += 85;
   }
+
+#ifndef NDEBUG
+  std::cout << "YOLOv5: " << boxes.size()
+            << " boxes before NMS (img: " << input_image.cols << "x"
+            << input_image.rows << ")" << std::endl;
+#endif
+
   // Perform Non-Maximum Suppression and draw predictions.
   std::vector<int> indices;
   cv::dnn::NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD,
                     indices);
+
+#ifndef NDEBUG
+  std::cout << "YOLOv5: " << indices.size() << " boxes after NMS" << std::endl;
+#endif
+
   for (int i = 0; i < indices.size(); i++) {
     int idx = indices[i];
     cv::Rect box = boxes[idx];
@@ -583,11 +163,349 @@ cv::Mat image_processing::post_process_yolo(
     std::string label = cv::format("%.2f", confidences[idx]);
     label = class_name[class_ids[idx]] + ":" + label;
 #ifndef NDEBUG
-    std::cout << "Detected: " << label << std::endl;
+    std::cout << "Detected: " << label << " at [" << left << "," << top << " "
+              << width << "x" << height << "]" << std::endl;
 #endif
     // Draw class labels.
     draw_label(input_image, label, left, top);
   }
+  return input_image;
+}
+
+int image_processing::detect_model_version(
+    const std::vector<cv::Mat> &outputs) {
+  // Detect model version based on output shape
+  // YOLOv5: shape [1, 25200, 85] - dimensions at index 2
+  // YOLOv8: shape [1, 84, 8400] - dimensions at index 1
+  // YOLO26: shape [1, 300, 6] - NMS-free one-to-one head
+  if (outputs.empty()) {
+    return 0; // Default to YOLOv5
+  }
+
+  cv::Mat output = outputs[0];
+  std::vector<int> shape;
+  for (int i = 0; i < output.dims; i++) {
+    shape.push_back(output.size[i]);
+  }
+
+#ifndef NDEBUG
+  std::cout << "Model output shape: [";
+  for (int i = 0; i < shape.size(); i++) {
+    std::cout << shape[i];
+    if (i < shape.size() - 1)
+      std::cout << ", ";
+  }
+  std::cout << "]" << std::endl;
+#endif
+
+  if (shape.size() >= 3) {
+    // YOLO26 NMS-free format: [1, 300, 6]
+    if (shape[1] == 300 && shape[2] == 6) {
+#ifndef NDEBUG
+      std::cout << "Detected YOLO26 model format (NMS-free)" << std::endl;
+#endif
+      return 2;
+    }
+    // YOLOv8 format: [1, 84, 8400]
+    else if (shape[1] == 84 && shape[2] == 8400) {
+#ifndef NDEBUG
+      std::cout << "Detected YOLOv8 model format" << std::endl;
+#endif
+      return 1;
+    }
+    // YOLOv5 format: [1, 25200, 85]
+    else if (shape[1] == 25200 && shape[2] == 85) {
+#ifndef NDEBUG
+      std::cout << "Detected YOLOv5 model format" << std::endl;
+#endif
+      return 0;
+    }
+  }
+
+  // Default to YOLOv5 if detection fails
+  return 0;
+}
+
+cv::Mat image_processing::post_process_yolov8(
+    cv::Mat &input_image, std::vector<cv::Mat> &outputs,
+    const std::vector<std::string> &class_name) {
+  // YOLOv8 output format: [1, 84, 8400]
+  // 84 = 4 (bbox) + 80 (classes), no objectness score
+  // Layout is transposed compared to YOLOv5
+
+  std::vector<int> class_ids;
+  std::vector<float> confidences;
+  std::vector<cv::Rect> boxes;
+
+  float x_factor = input_image.cols / INPUT_WIDTH;
+  float y_factor = input_image.rows / INPUT_HEIGHT;
+
+  cv::Mat output = outputs[0];
+
+  // Transpose from [1, 84, 8400] to [8400, 84] for easier processing
+  cv::Mat output_transposed;
+  if (output.dims == 3) {
+    // Reshape to [84, 8400]
+    cv::Mat reshaped = output.reshape(1, output.size[1]);
+    // Transpose to [8400, 84]
+    cv::transpose(reshaped, output_transposed);
+  } else {
+    output_transposed = output;
+  }
+
+  int rows = output_transposed.rows; // 8400
+
+#ifndef NDEBUG
+  std::cout << "YOLOv8 processing " << rows << " detections" << std::endl;
+#endif
+
+  for (int i = 0; i < rows; ++i) {
+    float *data = output_transposed.ptr<float>(i);
+
+    // First 4 values are bbox coordinates
+    float cx = data[0];
+    float cy = data[1];
+    float w = data[2];
+    float h = data[3];
+
+    // Next 80 values are class scores (no objectness score in YOLOv8)
+    cv::Mat scores(1, class_name.size(), CV_32FC1, data + 4);
+    cv::Point class_id;
+    double max_class_score;
+    cv::minMaxLoc(scores, 0, &max_class_score, 0, &class_id);
+
+    // Use max_class_score as confidence (YOLOv8 doesn't have separate
+    // objectness)
+    if (max_class_score > SCORE_THRESHOLD) {
+      confidences.push_back(max_class_score);
+      class_ids.push_back(class_id.x);
+
+      // Calculate bounding box coordinates
+      int left = int((cx - 0.5 * w) * x_factor);
+      int top = int((cy - 0.5 * h) * y_factor);
+      int width = int(w * x_factor);
+      int height = int(h * y_factor);
+
+      boxes.push_back(cv::Rect(left, top, width, height));
+    }
+  }
+
+  // Perform Non-Maximum Suppression
+  std::vector<int> indices;
+  cv::dnn::NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD,
+                    indices);
+
+  for (int i = 0; i < indices.size(); i++) {
+    int idx = indices[i];
+    cv::Rect box = boxes[idx];
+    int left = box.x;
+    int top = box.y;
+    int width = box.width;
+    int height = box.height;
+
+    // Draw bounding box
+    cv::rectangle(input_image, cv::Point(left, top),
+                  cv::Point(left + width, top + height), BLUE, 3 * THICKNESS);
+
+    // Create label
+    std::string label = cv::format("%.2f", confidences[idx]);
+    label = class_name[class_ids[idx]] + ":" + label;
+
+#ifndef NDEBUG
+    std::cout << "Detected: " << label << std::endl;
+#endif
+
+    draw_label(input_image, label, left, top);
+  }
+
+  return input_image;
+}
+
+cv::Mat image_processing::post_process_yolo26(
+    cv::Mat &input_image, std::vector<cv::Mat> &outputs,
+    const std::vector<std::string> &class_name) {
+  // YOLO26 NMS-free output format: [1, 300, 6]
+  // 300 = maximum detections (already filtered, no NMS needed!)
+  // 6 = [cx, cy, w, h, class_confidence, class_id] or similar format
+  // Key advantage: No NMS post-processing needed - 43% faster!
+
+  float x_factor = input_image.cols / INPUT_WIDTH;
+  float y_factor = input_image.rows / INPUT_HEIGHT;
+
+  cv::Mat output = outputs[0];
+
+  // Reshape to [300, 6] for easier processing
+  cv::Mat output_reshaped;
+  if (output.dims == 3) {
+    output_reshaped = output.reshape(1, output.size[1]);
+  } else {
+    output_reshaped = output;
+  }
+
+  int num_detections = output_reshaped.rows; // Should be 300
+
+#ifndef NDEBUG
+  std::cout << "YOLO26 NMS-free processing " << num_detections
+            << " detections (no post-processing needed!)" << std::endl;
+#endif
+
+  int valid_detections = 0;
+
+  // Store processed detections to avoid duplicates
+  struct Detection {
+    int class_id;
+    float confidence;
+    cv::Rect box;
+  };
+  std::vector<Detection> processed_detections;
+
+  // Track unique confidence values to detect parsing issues
+  std::set<float> unique_confidences;
+
+  for (int i = 0; i < num_detections; ++i) {
+    float *data = output_reshaped.ptr<float>(i);
+
+#ifndef NDEBUG
+    // Debug: Print ALL 6 raw values for first few detections with any
+    // confidence
+    static int raw_debug_count = 0;
+    if (data[0] != 0.0f || data[1] != 0.0f || data[2] != 0.0f) {
+      if (raw_debug_count < 10) {
+        std::cout << "RAW [" << raw_debug_count << "]: "
+                  << "data[0]=" << data[0] << " data[1]=" << data[1]
+                  << " data[2]=" << data[2] << " data[3]=" << data[3]
+                  << " data[4]=" << data[4] << " data[5]=" << data[5]
+                  << std::endl;
+        raw_debug_count++;
+      }
+    }
+#endif
+
+    // YOLO26/YOLO11 end-to-end output format: [1, 300, 6]
+    // Ultralytics YOLO11 end-to-end format is: [x1, y1, x2, y2, confidence,
+    // class_id] BUT coordinates are in INPUT resolution (640x640)
+    float x1 = data[0];
+    float y1 = data[1];
+    float x2 = data[2];
+    float y2 = data[3];
+    float confidence = data[4];
+    int class_id = static_cast<int>(data[5] + 0.5); // Round to nearest int
+
+    // Ensure x1 < x2 and y1 < y2 (swap if needed)
+    if (x1 > x2)
+      std::swap(x1, x2);
+    if (y1 > y2)
+      std::swap(y1, y2);
+
+    // Validate that we have a reasonable bounding box
+    float box_width = x2 - x1;
+    float box_height = y2 - y1;
+    bool valid_box = (box_width > 1.0f) && (box_height > 1.0f) &&
+                     (box_width < INPUT_WIDTH) && (box_height < INPUT_HEIGHT);
+
+    // Filter by confidence threshold
+    // Note: YOLO26 already applies internal filtering, so most detections
+    // below threshold will have confidence near 0
+    if (confidence > SCORE_THRESHOLD && confidence <= 1.0f && class_id >= 0 &&
+        class_id < class_name.size() && valid_box) {
+
+#ifndef NDEBUG
+      // Debug: Print raw coordinates of valid detections
+      static int valid_debug_count = 0;
+      if (valid_debug_count < 3) {
+        std::cout << "VALID Detection #" << valid_debug_count << ": "
+                  << "x1=" << x1 << " y1=" << y1 << " x2=" << x2 << " y2=" << y2
+                  << " conf=" << confidence << " class=" << class_id
+                  << std::endl;
+        valid_debug_count++;
+      }
+#endif
+
+      // Scale coordinates from 640x640 input space to actual image size
+      int left = int(x1 * x_factor);
+      int top = int(y1 * y_factor);
+      int width = int((x2 - x1) * x_factor);
+      int height = int((y2 - y1) * y_factor);
+
+      // Ensure bounding box is within image bounds
+      left = std::max(0, std::min(left, input_image.cols - 1));
+      top = std::max(0, std::min(top, input_image.rows - 1));
+      width = std::max(1, std::min(width, input_image.cols - left));
+      height = std::max(1, std::min(height, input_image.rows - top));
+
+      cv::Rect current_box(left, top, width, height);
+
+      // Check for duplicates: skip if we've already processed a very similar
+      // detection
+      bool is_duplicate = false;
+      for (const auto &prev : processed_detections) {
+        if (prev.class_id == class_id) {
+          // Check if confidences are very close (within 0.001)
+          bool conf_similar = std::abs(prev.confidence - confidence) < 0.001;
+
+          // Calculate IoU (Intersection over Union)
+          cv::Rect intersection = prev.box & current_box;
+          float intersection_area = intersection.area();
+          float union_area =
+              prev.box.area() + current_box.area() - intersection_area;
+          float iou = (union_area > 0) ? (intersection_area / union_area) : 0;
+
+          // If confidences are identical and any overlap exists, it's likely a
+          // duplicate Otherwise use standard IoU threshold
+          if ((conf_similar && iou > 0.1) || iou > 0.5) {
+            is_duplicate = true;
+            break;
+          }
+        }
+      }
+
+      if (!is_duplicate) {
+        valid_detections++;
+        processed_detections.push_back({class_id, confidence, current_box});
+        unique_confidences.insert(confidence);
+
+        // Draw bounding box
+        cv::rectangle(input_image, cv::Point(left, top),
+                      cv::Point(left + width, top + height), BLUE,
+                      3 * THICKNESS);
+
+        // Create label
+        std::string label = cv::format("%.2f", confidence);
+        label = class_name[class_id] + ":" + label;
+
+#ifndef NDEBUG
+        std::cout << "Detected: " << label << " [NMS-free]" << std::endl;
+#endif
+
+        draw_label(input_image, label, left, top);
+      }
+#ifndef NDEBUG
+      else {
+        std::cout << "Skipped duplicate: " << class_name[class_id] << ":"
+                  << cv::format("%.2f", confidence) << std::endl;
+      }
+#endif
+    }
+  }
+
+#ifndef NDEBUG
+  std::cout << "YOLO26: " << valid_detections << " valid detections (out of "
+            << num_detections << " processed)" << std::endl;
+
+  // Warn if all confidence values are identical (indicates parsing issue)
+  if (unique_confidences.size() == 1 && valid_detections > 1) {
+    std::cout << "WARNING: All detections have identical confidence ("
+              << *unique_confidences.begin()
+              << "). This may indicate incorrect output format parsing!"
+              << std::endl;
+    std::cout
+        << "         The model might not be properly exported as end-to-end, "
+        << std::endl;
+    std::cout << "         or the output format interpretation is incorrect."
+              << std::endl;
+  }
+#endif
+
   return input_image;
 }
 
@@ -620,8 +538,29 @@ image_processing::run_yolo_obj_detection(cv::Mat &frame,
   cv::Mat obj_detected_frame = frame.clone();
   std::vector<cv::Mat> detections; // Process the image.
   detections = pre_process_yolo(frame, onnx_net);
-  cv::Mat yolo_img =
-      post_process_yolo(obj_detected_frame, detections, class_list);
+
+  // Detect model version on first run
+  static bool version_detected = false;
+  static int model_version = 0; // 0=YOLOv5, 1=YOLOv8, 2=YOLO26
+  if (!version_detected) {
+    model_version = detect_model_version(detections);
+    this->is_yolov8_model = (model_version == 1);
+    this->is_yolo26_model = (model_version == 2);
+    version_detected = true;
+  }
+
+  // Use appropriate post-processing based on model version
+  cv::Mat yolo_img;
+  if (this->is_yolo26_model) {
+    // YOLO26: NMS-free end-to-end inference (43% faster!)
+    yolo_img = post_process_yolo26(obj_detected_frame, detections, class_list);
+  } else if (this->is_yolov8_model) {
+    // YOLOv8: Transposed format without objectness
+    yolo_img = post_process_yolov8(obj_detected_frame, detections, class_list);
+  } else {
+    // YOLOv5: Traditional format with objectness score
+    yolo_img = post_process_yolo(obj_detected_frame, detections, class_list);
+  }
 #ifndef NDEBUG
   // Put efficiency information.
   // The function getPerfProfile returns the overall time for     inference(t)

@@ -1,9 +1,6 @@
 #include "image_processing.h"
 #include "video_processing.h"
 #include <iostream>
-
-#include "image_processing.h"
-#include <iostream>
 #include <string>
 #include <vector>
 
