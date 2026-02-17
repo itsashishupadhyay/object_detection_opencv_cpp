@@ -43,6 +43,7 @@ libs.Makefile
 
 # Test files
 test_images/
+supporting_scripts/opus_dataset
 
 # Python virtual environment
 .yolo_venv/
