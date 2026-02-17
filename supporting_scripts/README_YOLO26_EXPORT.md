@@ -290,4 +290,3 @@ For issues related to:
 
 **Last Updated**: 2026-02-16
 **Script Version**: 2.0
-**Author**: Claude Code
