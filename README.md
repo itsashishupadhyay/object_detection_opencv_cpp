@@ -335,6 +335,158 @@ colour-coded header strip (green/amber/red) stamps the `NavDecision` verdict
 so the images are self-labelling. This is exactly how the 10 worked examples
 in [`examples/nav_decision/`](./examples/nav_decision/) were produced.
 
+## What a NavDecision Output Actually Means
+
+The binary prints one JSON object per image to stdout and, in batch mode, writes a copy to `artifacts/cassini_issna/decisions/<image_id>.json`. Every numeric field traces back to exactly one of three sources: **pixels** (the YOLO bounding box), **a verified table** (`artifacts/instruments.csv`, the IAU body catalog, `artifacts/spacecraft_state.csv`), or **a simple geometric identity**. No magic constants.
+
+Here is a real `NOMINAL` fix for Jupiter (image `co-iss-n1349153551`, Cassini approach in late 2000):
+
+<details>
+<summary><b>Click to expand the raw JSON (long — includes the full SPICE kernel list)</b></summary>
+
+```json
+{
+  "status": "NOMINAL",
+  "image_id": "co-iss-n1349153551",
+  "mission": "cassini",
+  "instrument": "issna",
+  "fix": {
+    "body": "jupiter",
+    "bbox_px": [371, 330, 366, 350],
+    "center_offset_px": [42.000000, -7.000000],
+    "center_offset_deg": [0.014414, -0.002402],
+    "range_km": 63780709.356325,
+    "xyz_camera_frame_km": [16045.141454, -2674.190187, 63780709.356325],
+    "range_uncertainty_km": 348528.466428,
+    "range_regime": "full_tan",
+    "body_radius_km_used": 69911.000000,
+    "body_radius_is_placeholder": false,
+    "instrument_verified": true,
+    "state_verified": true
+  },
+  "action": "HOLD",
+  "delta_v_mps": [0.000000, 0.000000, 0.000000],
+  "time_to_closest_approach_s": null,
+  "predicted_miss_distance_km": null,
+  "decision_confidence": 0.978446,
+  "instrument_record_source": "Porco et al. 2004, Space Sci. Rev. 115, 363-497, doi:10.1007/s11214-004-1456-7; NAIF IK cas_iss_v10.ti; PDS ISSNA_INST.CAT (coiss_2101)",
+  "spice_kernels_used": "00001_00092rc.bc; 00092_00183rc.bc; … (80+ kernels, full list in the on-disk JSON) … naif0012.tls; pck00011.tpc",
+  "range_residual_vs_spice_km": null,
+  "reasoning": "NOMINAL: instrument verified, SPICE state verified, class matches metadata. No planned trajectory provided, delta_v defaulted to zero."
+}
+```
+
+</details>
+
+### Field-by-field walkthrough
+
+Each field below is tagged **measured** (came from the pixels), **pulled** (came from a verified table or SPICE), **computed** (derived from one or both), or **passthrough** (copied from inputs).
+
+#### Top level — what happened, and to what
+
+- **`status`** — *computed, categorical*. One of `NOMINAL | DEGRADED | REFUSED`.
+  - `NOMINAL` — detection succeeded, instrument verified, SPICE state verified, detected class matches the manifest's metadata.
+  - `DEGRADED` — detection succeeded with high confidence but something is inconsistent (class mismatch, or instrument/state unverified). Fix is still reported but flagged.
+  - `REFUSED` — no detection above threshold, or a hard precondition failed. Numeric fields go `null`. Every REFUSED is a point the pipeline honestly did not know — refuse rather than fabricate.
+- **`image_id`**, **`mission`**, **`instrument`** — *passthrough* from the CLI / manifest row, so the JSON is self-identifying.
+
+#### `fix` — the geometric claim (only for NOMINAL / DEGRADED)
+
+- **`fix.body`** — *measured (YOLO)*. Top class name after softmax + NMS. What the network thinks it sees.
+- **`fix.bbox_px`** — *measured (YOLO)*. `[x, y, w, h]` in pixels. In the example: `[371, 330, 366, 350]` — a 366×350 box at top-left (371, 330) inside a 1024×1024 ISS-NAC frame.
+- **`fix.center_offset_px`** — *computed*. Bounding-box center minus image center:
+
+  ```text
+  cx_bbox  = x + w/2 = 371 + 183 = 554
+  cy_bbox  = y + h/2 = 330 + 175 = 505
+  offset_x = cx_bbox - image_w/2 = 554 - 512 =  42
+  offset_y = cy_bbox - image_h/2 = 505 - 512 =  -7
+  ```
+
+  This is the raw pointing error: where the body *is* minus where the camera was *pointed*.
+
+- **`fix.center_offset_deg`** — *computed*. The same offset converted to degrees using the instrument's IFOV (instantaneous field of view per pixel):
+
+  ```text
+  IFOV_rad = pixel_pitch / focal_length = 12 µm / 2003.44 mm ≈ 5.989e-6 rad/px
+  IFOV_deg ≈ 3.4315e-4 deg/px   (≈ 1.2357 arcsec/px)
+
+  offset_deg_x =  42 × 3.4315e-4 ≈  0.01441°
+  offset_deg_y =  -7 × 3.4315e-4 ≈ -0.00240°
+  ```
+
+  Focal length and pixel pitch come from the verified instrument record, which cites the NAIF IK kernel `cas_iss_v10.ti` and Porco et al. 2004 — nothing is a magic number.
+
+- **`fix.range_km`** — *computed*. The headline number. Given the apparent angular radius of the body and its true physical radius, solve a right triangle for distance:
+
+  ```text
+  θ     = (bbox_width_px / 2) × IFOV_rad       # apparent angular radius
+  range = R_body / tan(θ)                       # "full_tan" regime
+
+  θ     = (366/2) × 5.989e-6 = 1.0961e-3 rad
+  R     = 69,911 km                             # Jupiter equatorial radius
+  range = 69911 / tan(1.0961e-3) ≈ 63,780,709 km
+  ```
+
+  So Cassini was ~63.8 million km from Jupiter when it took this picture. That matches the Jupiter flyby era.
+
+- **`fix.xyz_camera_frame_km`** — *computed*. The body's position in the camera's own frame (`z` = boresight, `x/y` = image plane), in kilometers:
+
+  ```text
+  z = range
+  x = range × tan(offset_deg_x × π/180)
+  y = range × tan(offset_deg_y × π/180)
+  ```
+
+  This is the form you would actually feed into a guidance system — "the body is at this XYZ relative to me right now."
+
+- **`fix.range_uncertainty_km`** — *computed*. Propagated from a 1-pixel uncertainty on the bounding-box edges:
+
+  ```text
+  dθ/θ ≈ 1 / (w/2)          # fractional angular uncertainty
+  dR/R ≈ dθ/θ               # small-angle propagation
+  dR   ≈ R × (2 / w)
+
+  For w = 366:
+  dR ≈ 63,780,709 × (2/366) ≈ 348,528 km   (~0.55 % of range)
+  ```
+
+  That sounds small until you remember the §7 *whole-frame-bbox* labeling rule forces `w` to mean "box around the blob," not "photocenter." This uncertainty is the **structural floor** the paper flags as the root cause of EXIT_FAIL — no amount of training can beat it, because it is a labeling-contract problem, not a model problem.
+
+- **`fix.range_regime`** — *tag*. Either `full_tan` (uses `R/tan(θ)`) or `small_angle` (uses `R/θ`). For far bodies the two agree; for close approaches `tan(θ)` diverges and the full form is mandatory. The tag records which equation was used.
+- **`fix.body_radius_km_used`** — *pulled*. `69911.0` is Jupiter's equatorial radius from the IAU body catalog (`spice_cache/pck/pck00011.tpc`, via SPICE `bodvrd_c`). Recorded verbatim so the range computation is fully reproducible.
+- **`fix.body_radius_is_placeholder`** — *flag*. `false` = real catalog value; `true` = we fell back to a placeholder and the status would drop to DEGRADED or REFUSED upstream.
+- **`fix.instrument_verified`** — *flag*. `true` means there is a row in `artifacts/instruments.csv` for `(cassini, issna)` with focal length, pitch, and array dimensions that all cite NAIF/PDS sources. If `false`, status drops to DEGRADED — we will not claim navigation accuracy with unverified optics.
+- **`fix.state_verified`** — *flag*. `true` means SPICE successfully resolved the spacecraft→body vector at this image's timestamp (CK/SPK had coverage). Used downstream by `compute_residuals.py` to score predictions against ground truth.
+
+#### Decision block — what to do about it
+
+- **`action`** — *computed*. `HOLD` or `BURN`. `HOLD` means no correction is being commanded (either because no trajectory was fed in, or because the predicted miss distance is inside the corridor). Every image in the test bracket comes back HOLD because the bracket has no trajectory plan attached.
+- **`delta_v_mps`** — *computed (default zeros)*. Recommended velocity correction in the spacecraft frame, m/s. Zeros when `action = HOLD`.
+- **`time_to_closest_approach_s`**, **`predicted_miss_distance_km`** — *computed, `null` here*. Both require a planned trajectory input. Without one they are `null` — honest nulls over fake numbers.
+- **`decision_confidence`** — *passthrough from YOLO*. Top class's softmax probability. **This is detection confidence, not navigation confidence** — a high number means the network is sure it's looking at Jupiter, not that the range is accurate to any particular tolerance. The paper is explicit about this distinction.
+
+#### Provenance — every number traceable
+
+- **`instrument_record_source`** — *pulled*. The literal citation chain used to populate `instruments.csv`: Porco et al. 2004 (the ISS instrument paper, DOI included), NAIF instrument kernel `cas_iss_v10.ti`, PDS catalog `ISSNA_INST.CAT` from volume `coiss_2101`. If anyone questions where 2003.44 mm came from, the answer lives in this string.
+- **`spice_kernels_used`** — *pulled*. Every kernel file in the SPICE pool when the fix was computed: leapseconds (`naif0012.tls`), spacecraft clock (`cas00172.tsc`), frames (`cas_v43.tf`), instrument kernel (`cas_iss_v10.ti`), planetary constants (`pck00011.tpc`), dozens of reconstructed CK attitude kernels (`*rc.bc`), and ~30 reconstructed SPK trajectory kernels (`*SCPSE*.bsp`). This is what lets someone else **bit-exactly reproduce** the geometry.
+- **`range_residual_vs_spice_km`** — *computed offline, `null` at runtime*. The difference between `fix.range_km` and the true SPICE range at this timestamp. Always `null` live — it is filled in by `supporting_scripts/compute_residuals.py` into `artifacts/cassini_issna/residuals.csv`. The field exists on the schema so a scored JSON looks identical to a live JSON plus one filled-in number. §14.9 (the ≤25 % range-error exit condition) is evaluated against this.
+- **`reasoning`** — *computed*. One sentence explaining which branch of the decision tree was taken. Exists so a human reading a failed case can understand it without re-running the pipeline.
+
+#### The trailer line
+
+After the JSON, the batch runner prints a single tally line:
+
+```text
+NOMINAL: 1 | DEGRADED: 0 | REFUSED: 0
+```
+
+`supporting_scripts/run_nav_decision_batch.py` parses this with a regex to build the run-wide totals that end up in `runtime_summary.json`.
+
+### The thing to take away
+
+Every single numeric field traces back to pixels, a verified table, or a simple geometric identity. No magic constants, no hidden calibration, no "trust me." That is the whole contract — and also why the paper can look you in the eye and say "the §7 labeling rule imposes an angular-precision floor that no training can fix," because the math above makes the floor literal: `fractional range uncertainty ≈ 2 / bbox_width`, full stop.
+
 ## Reproducing the Pipeline from a Fresh Clone
 
 ```bash
