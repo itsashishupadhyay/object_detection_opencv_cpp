@@ -1,0 +1,16 @@
+{
+  "status": "REFUSED",
+  "image_id": "co-iss-n1557900912",
+  "mission": "cassini",
+  "instrument": "issna",
+  "fix": null,
+  "action": null,
+  "delta_v_mps": null,
+  "time_to_closest_approach_s": null,
+  "predicted_miss_distance_km": null,
+  "decision_confidence": 0.000000,
+  "instrument_record_source": "Porco et al. 2004, Space Sci. Rev. 115, 363-497, doi:10.1007/s11214-004-1456-7; NAIF IK cas_iss_v10.ti; PDS ISSNA_INST.CAT (coiss_2101)",
+  "spice_kernels_used": "",
+  "range_residual_vs_spice_km": null,
+  "reasoning": "no detections above score threshold"
+}

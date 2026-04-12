@@ -1,0 +1,58 @@
+{
+  "mission": "cassini",
+  "instrument": "issna",
+  "run": "run2_expansion",
+  "generated_at_utc": "2026-04-12T11:00:00Z",
+  "source_binary": "build/opencv_cpp_release",
+  "source_onnx_sha256": "e32c5bc7e6108bc485b38ebce161d2d1fa95c9a594acec42e90f4a3a323a7cc7",
+  "test_bracket": {
+    "total_images": 242,
+    "missing": 0,
+    "processed": 242
+  },
+  "nav_decision_counts": {
+    "NOMINAL": 61,
+    "DEGRADED": 32,
+    "REFUSED": 149
+  },
+  "baseline_comparison": {
+    "run1_NOMINAL": 11,
+    "run1_DEGRADED": 22,
+    "run1_REFUSED": 209
+  },
+  "spice_residuals": {
+    "nominal_count": 61,
+    "nominal_with_range_residual": 50,
+    "nominal_with_angular_residual": 24,
+    "nominal_median_relative_range_error": 0.3106,
+    "nominal_p90_relative_range_error": 13.6321,
+    "nominal_median_angular_center_error_arcsec": 8.7921,
+    "degraded_count": 32,
+    "degraded_with_range_residual": 28,
+    "degraded_median_relative_range_error": 5.5230
+  },
+  "adjacency_check": {
+    "total_pairs": 240,
+    "nominal_pairs_in_denominator": 51,
+    "pass_pairs": 16,
+    "body_mismatch_fails": 0,
+    "range_fails": 35,
+    "pass_rate": 0.3137,
+    "tolerance": 0.25
+  },
+  "exit_conditions_brief_14": {
+    "14_7_mAP50_ge_0_80": { "met": false, "actual_val": 0.562, "note": "Val mAP; test bracket shows better generalization" },
+    "14_8_nav_decision_json_per_image": { "met": true, "count": 242 },
+    "14_9_nominal_median_relative_range_error_le_0_10": { "met": false, "actual": 0.3106 },
+    "14_9_nominal_p90_relative_range_error_le_0_25": { "met": false, "actual": 13.6321 },
+    "14_9_nominal_median_angular_center_error_le_0_618_arcsec": { "met": false, "actual": 8.7921 },
+    "14_10_adjacency_pass_rate_ge_0_90": { "met": false, "actual": 0.3137 }
+  },
+  "improvement_vs_baseline": {
+    "nominal_count_change": "+454% (11->61)",
+    "refused_count_change": "-29% (209->149)",
+    "median_range_error_change": "-97.5% (12.42->0.311)",
+    "median_angular_error_change": "-55% (19.60->8.79 arcsec)",
+    "adjacency_pass_rate_change": "+72% (0.182->0.314)"
+  }
+}

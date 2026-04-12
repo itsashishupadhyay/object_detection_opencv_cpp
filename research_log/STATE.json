@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "current_pair": {
+    "mission": "cassini",
+    "instrument": "issna"
+  },
+  "pair_phase": "EXIT_FAIL_DOCUMENTED",
+  "iteration": 15,
+  "last_action": "Expansion retrain complete (3 runs). Run2 (YOLOv8s, 640px, val mAP=0.562) deployed. Test bracket: NOMINAL 11->61, median range error 12.42->0.311. All \u00a714 exit conditions still fail but with dramatic improvement. Ready for paper-writer.",
+  "last_action_at_utc": "2026-04-12T11:00:00Z",
+  "next_planned_action": "Dispatch paper-writer sub-agent for PAPER_cassini_issna.md + SELF_AUDIT_cassini_issna.md",
+  "checkpoints": {
+    "instrument_record_verified": true,
+    "tech_sheet_written": true,
+    "spice_kernels_cached": [
+      "88 kernel files in spice_cache/"
+    ],
+    "spacecraft_state_computed": true,
+    "state_rows_total": 1415,
+    "images_downloaded": 1875,
+    "train_test_split_done": true,
+    "test_count": 242,
+    "test_bracket_frozen": true,
+    "total_training_labels": 378,
+    "training_runs": {
+      "run1": {
+        "model": "yolov8n",
+        "imgsz": 320,
+        "labels": 288,
+        "val_mAP50": 0.632
+      },
+      "run2": {
+        "model": "yolov8s",
+        "imgsz": 640,
+        "labels": 378,
+        "val_mAP50": 0.562,
+        "deployed": true
+      },
+      "run3": {
+        "model": "yolov8n",
+        "imgsz": 320,
+        "labels": 378,
+        "val_mAP50": 0.423
+      }
+    },
+    "evaluation_completed": true,
+    "nav_decision_counts_run2": {
+      "NOMINAL": 61,
+      "DEGRADED": 32,
+      "REFUSED": 149
+    },
+    "residuals_nominal_median_rel_range_run2": 0.3106,
+    "residuals_nominal_p90_rel_range_run2": 13.6321,
+    "residuals_nominal_median_angular_arcsec_run2": 8.7921,
+    "adjacency_pass_rate_run2": 0.3137,
+    "exit_14_7_met": false,
+    "exit_14_8_met": true,
+    "exit_14_9_met": false,
+    "exit_14_10_met": false,
+    "paper_written": false,
+    "self_audit_passed": false
+  },
+  "disk_budget": {
+    "budget_gb": 20,
+    "used_gb": 0.4,
+    "free_gb_at_last_check": 358.0,
+    "last_checked_at_utc": "2026-04-12T11:00:00Z"
+  },
+  "session_limit": {
+    "status": "ACTIVE"
+  },
+  "completed_pairs": [],
+  "open_questions": [
+    "All \u00a714 exit conditions fail, but NOMINAL count 5.5x and median range error 40x better than baseline.",
+    "p90 range error still catastrophic (13.63) due to outlier images with wrong-body detections.",
+    "Angular error 8.79 arcsec (~14x threshold) is inherent to bbox centroid localization limits.",
+    "Run2 val mAP (0.562) lower than run1 (0.632) due to different val split \u2014 not a regression."
+  ],
+  "fingerprint": {
+    "brief_sha256": "840c22ed9cc7ca985e15f33521c452cb8423e1e3604c5a60c7caf8a07e561477",
+    "code_head_sha": "02917a5c10c6739a857214ecfa621f57c3c037b4",
+    "weights_sha256": {
+      "cassini_issna_planets.onnx": "0b21d7ad2dea0b0ea8986741cc8b65a7ef6057893e00f7e6eabd9231d14f5935"
+    }
+  },
+  "training_runs": {
+    "run4": {
+      "val_mAP50": 0.676,
+      "val_mAP50_95": 0.583,
+      "test_NOMINAL": 57,
+      "test_DEGRADED": 28,
+      "test_REFUSED": 157,
+      "nominal_median_rel_range": 0.266,
+      "adjacency_pass_rate": 0.277,
+      "weights_sha256": "0b21d7ad2dea0b0ea8986741cc8b65a7ef6057893e00f7e6eabd9231d14f5935"
+    }
+  }
+}

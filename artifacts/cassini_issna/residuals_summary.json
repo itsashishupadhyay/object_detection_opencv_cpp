@@ -1,0 +1,41 @@
+{
+  "total_decisions": 242,
+  "NOMINAL": {
+    "count": 57,
+    "relative_range_error": {
+      "n": 46,
+      "median": 0.26553241146695994,
+      "p90": 13.357290277901502,
+      "min": 0.19533354101998807,
+      "max": 25.1552726344727
+    },
+    "angular_center_error_arcsec": {
+      "n": 21,
+      "median": 15.082182727650583,
+      "p90": 25.42302371770651,
+      "min": 0.297650049372067,
+      "max": 42.11339321802389
+    }
+  },
+  "DEGRADED": {
+    "count": 28,
+    "relative_range_error": {
+      "n": 25,
+      "median": 0.9993663662423011,
+      "p90": 49.49883136977722,
+      "min": 0.24713264644851948,
+      "max": 159.65331624779387
+    },
+    "angular_center_error_arcsec": {
+      "n": 0
+    }
+  },
+  "REFUSED_count": 157,
+  "spice_lookup_failures": 14,
+  "no_body_mapping": 0,
+  "ifov_arcsec_per_px": 1.2357,
+  "angular_threshold_arcsec": 0.618,
+  "exit_14_9_nominal_median_rel_range_le_0_10": false,
+  "exit_14_9_nominal_p90_rel_range_le_0_25": false,
+  "exit_14_9_nominal_median_angular_le_0_618_arcsec": false
+}

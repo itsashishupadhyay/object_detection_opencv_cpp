@@ -1,0 +1,12 @@
+{
+  "total_pairs": 240,
+  "nominal_pairs_in_denominator": 47,
+  "pass_pairs": 13,
+  "body_mismatch_fails": 0,
+  "range_fails": 34,
+  "spice_lookup_skipped": 9,
+  "non_nominal_skipped": 184,
+  "pass_rate": 0.2765957446808511,
+  "tolerance": 0.25,
+  "exit_14_10_pass_rate_ge_0_90": false
+}

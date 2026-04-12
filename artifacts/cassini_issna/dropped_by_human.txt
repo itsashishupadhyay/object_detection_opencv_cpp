@@ -1,0 +1,44 @@
+# Permanent human-drop list for cassini/issna auto-labeling.
+# Source: review/cassini_issna/auto_labels/DECISION.md (round 1, 33 per-image rejects)
+# These image_ids are NEVER used for training, even if a stricter labeler
+# would now accept them. Per brief section 8.5 hard rule.
+co-iss-n1355702455
+co-iss-n1356764597
+co-iss-n1357923644
+co-iss-n1459600984
+co-iss-n1459603295
+co-iss-n1459603888
+co-iss-n1459605601
+co-iss-n1459733315
+co-iss-n1459803671
+co-iss-n1459804399
+co-iss-n1460857122
+co-iss-n1521540830
+co-iss-n1521594623
+co-iss-n1541716868
+co-iss-n1557901389
+co-iss-n1559968831
+co-iss-n1559970510
+co-iss-n1574853085
+co-iss-n1620045796
+co-iss-n1620679652
+co-iss-n1630960936
+co-iss-n1643264854
+co-iss-n1645840592
+co-iss-n1661528725
+co-iss-n1667128776
+co-iss-n1675110466
+co-iss-n1684083403
+co-iss-n1684085251
+co-iss-n1743017804
+co-iss-n1820706813
+co-iss-n1820707821
+co-iss-n1824758363
+co-iss-w1565241339
+co-iss-w1565246157
+co-iss-w1579185829
+co-iss-w1579250265
+co-iss-w1601479217
+co-iss-w1603176659
+co-iss-w1620501931
+co-iss-w1620503760

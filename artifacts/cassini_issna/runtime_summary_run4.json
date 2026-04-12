@@ -1,0 +1,58 @@
+{
+  "run": "run4",
+  "weights_sha256": "0b21d7ad2dea0b0ea8986741cc8b65a7ef6057893e00f7e6eabd9231d14f5935",
+  "training": {
+    "base_model": "yolov8s.pt",
+    "imgsz": 640,
+    "epochs_requested": 80,
+    "epochs_completed": 78,
+    "labels_train": 347,
+    "labels_val": 53,
+    "val_best_mAP50": 0.676,
+    "val_best_mAP50_95": 0.583,
+    "wallclock_hours": 2.496
+  },
+  "test_bracket_all_242": {
+    "NOMINAL": 57,
+    "DEGRADED": 28,
+    "REFUSED": 157,
+    "nominal_rel_range_median": 0.26553,
+    "nominal_rel_range_p90": 13.357,
+    "nominal_angular_median_arcsec": 15.082,
+    "adjacency_pass_rate": 0.2766
+  },
+  "stratified_n_prefix": {
+    "NOMINAL": 52,
+    "DEGRADED": 20,
+    "REFUSED": 144,
+    "nominal_rel_range_n": 41,
+    "nominal_rel_range_median": 0.262,
+    "nominal_rel_range_p90": 8.338,
+    "nominal_rel_range_max": 25.155
+  },
+  "stratified_w_prefix": {
+    "NOMINAL": 5,
+    "DEGRADED": 8,
+    "REFUSED": 13,
+    "nominal_rel_range_n": 5,
+    "nominal_rel_range_median": 13.610,
+    "nominal_rel_range_p90": 13.741,
+    "note": "ISSWA contamination — NAC focal length misapplied; systematic ~13x range error"
+  },
+  "exit_conditions": {
+    "14_7_mAP50_ge_0_80": false,
+    "14_9_nominal_median_rel_range_le_0_10": false,
+    "14_9_nominal_p90_rel_range_le_0_25": false,
+    "14_9_nominal_median_angular_le_0_618_arcsec": false,
+    "14_10_adjacency_ge_0_90": false
+  },
+  "comparison_to_run2_baseline": {
+    "run2_NOMINAL": 61,
+    "run4_NOMINAL": 57,
+    "run2_nom_median_rel_range": 0.311,
+    "run4_nom_median_rel_range": 0.266,
+    "run2_adjacency": 0.314,
+    "run4_adjacency": 0.277,
+    "verdict": "Slight median improvement, slight count regression. p90 tail still dominated by w-prefix contamination and whole-frame-bbox coarseness."
+  }
+}
