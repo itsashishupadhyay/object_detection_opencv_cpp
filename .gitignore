@@ -1,5 +1,12 @@
 # IDE
 .vscode
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
+.claude
 
 # Build directories
 build/
@@ -18,17 +25,15 @@ install_manifest.txt
 _deps/
 Testing/
 
-# Ninja build system
+# Ninja / Make
 build.ninja
 .ninja_deps
 .ninja_log
 *.ninja
-
-# Make artifacts
 Makefile
 libs.Makefile
 
-# Compiled object files
+# Compiled objects
 *.o
 *.obj
 *.a
@@ -37,19 +42,56 @@ libs.Makefile
 *.dll
 *.exe
 
-# macOS
-.DS_Store
-.claude
-
-# Test files
-test_images/
-supporting_scripts/opus_dataset
-
-# Python virtual environment
+# Python
 .yolo_venv/
 __pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
 
-# Model weights (optional - uncomment if you want to ignore large model files)
-# weight/*.onnx
-# weight/*.pt
+# Pretrained weights (not ours — pull from ultralytics)
+yolov8n.pt
+yolov8s.pt
+weight/yolov5s.onnx
+weight/yolov8n.onnx
+weight/yolo26n.onnx
+weight/coco.names
+
+# SPICE kernels (~3.4 GB — pull from NAIF, see docs/tech_sheets/cassini_issna.md §8)
+spice_cache/
+
+# Per-epoch training checkpoints (~684 MB — only final ONNX is committed)
+training_runs/
+
+# Label-review bundles (internal workflow)
+review/
+
+# Vendor reference trees
+external_components/
+
+# Test/supporting-script scratch dirs
+test_images/
+supporting_scripts/opus_dataset/
+supporting_scripts/test_images/
+
+# Intermediate research telemetry (rots quickly; regenerable)
+artifacts/cassini_issna/*.pre_expansion_backup
+artifacts/cassini_issna/*.progress.log
+artifacts/cassini_issna/*.stderr.log
+artifacts/cassini_issna/nav_decision_batch.log
+artifacts/cassini_issna/auto_label_stats.json
+artifacts/cassini_issna/auto_label_expansion_stats.json
+artifacts/cassini_issna/auto_label_round4_stats.json
+artifacts/cassini_issna/training_metrics.json
+artifacts/cassini_issna/training_metrics_run2.json
+artifacts/cassini_issna/issna_expansion2_summary.json
+artifacts/cassini_issna/expansion_download_summary.json
+artifacts/cassini_issna/runtime_summary.json
+
+# Intermediate research-log entries (paper + audit in docs/ongoing_research/ are canonical)
+research_log/*.md
+research_log/*.json
+!research_log/STATE.json
+
+# Orchestrator resume file
+research_log/RESUME.md

@@ -95,9 +95,11 @@ cv::Mat image_processing::post_process_yolo(
   float x_factor = input_image.cols / INPUT_WIDTH;
   float y_factor = input_image.rows / INPUT_HEIGHT;
   float *data = (float *)outputs[0].data;
-  const int dimensions = 85;
-  // 25200 for default size 640.
-  const int rows = 25200;
+  // Generalize for N-class models (YOLOv5 format is 5 + num_classes per row).
+  // Original COCO model had 85 dims; Cassini/issna model has 5+64=69. We use
+  // the output shape itself as the source of truth.
+  const int dimensions = (outputs[0].dims >= 3) ? outputs[0].size[2] : 85;
+  const int rows = (outputs[0].dims >= 3) ? outputs[0].size[1] : 25200;
   // Iterate through 25200 detections.
   for (int i = 0; i < rows; ++i) {
     float confidence = data[4];
@@ -131,7 +133,7 @@ cv::Mat image_processing::post_process_yolo(
       }
     }
     // Jump to the next row.
-    data += 85;
+    data += dimensions;
   }
 
 #ifndef NDEBUG
@@ -206,17 +208,21 @@ int image_processing::detect_model_version(
 #endif
       return 2;
     }
-    // YOLOv8 format: [1, 84, 8400]
-    else if (shape[1] == 84 && shape[2] == 8400) {
+    // YOLOv8 format: [1, 4+num_classes, N] where num_classes >= 1 and N is
+    // the number of anchor points (typically 8400 for 640 input). We detect
+    // this generically rather than pinning to the COCO 84 case.
+    else if (shape[1] < shape[2] && shape[1] >= 5 && shape[2] >= 1000) {
 #ifndef NDEBUG
-      std::cout << "Detected YOLOv8 model format" << std::endl;
+      std::cout << "Detected YOLOv8 model format (shape [1, " << shape[1]
+                << ", " << shape[2] << "])" << std::endl;
 #endif
       return 1;
     }
-    // YOLOv5 format: [1, 25200, 85]
-    else if (shape[1] == 25200 && shape[2] == 85) {
+    // YOLOv5 format: [1, N, 5+num_classes] where N ~ 25200 for 640 input.
+    else if (shape[1] > shape[2] && shape[2] >= 6) {
 #ifndef NDEBUG
-      std::cout << "Detected YOLOv5 model format" << std::endl;
+      std::cout << "Detected YOLOv5 model format (shape [1, " << shape[1]
+                << ", " << shape[2] << "])" << std::endl;
 #endif
       return 0;
     }
@@ -641,6 +647,192 @@ int image_processing::IMAGE_TEST_BLOCK(std::string path2image) {
   // display_image(yolo_image, "yolo processed image");
 
   return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Non-drawing detection path used by the NavFix / NavDecision flags. Returns a
+// vector of RawDetection in original-image pixel coordinates. Shares the
+// existing pre-process + model-version detection machinery so behavior matches
+// the visual --detect path.
+// ---------------------------------------------------------------------------
+bool image_processing::load_model(const std::string &path2labels,
+                                  const std::string &path2onnx) {
+  if (!class_list.empty() && !onnx_net.empty()) {
+    return true;
+  }
+  std::string labels = path2labels;
+  std::string onnx = path2onnx;
+  if (labels.empty()) {
+    auto p = std::filesystem::current_path();
+    labels = (p / "weight" / "coco.names").string();
+  }
+  if (onnx.empty()) {
+    auto p = std::filesystem::current_path();
+    onnx = (p / "weight" / "yolov5s.onnx").string();
+  }
+  std::ifstream ifs(labels);
+  if (!ifs) {
+    std::cerr << "[img] cannot open labels: " << labels << std::endl;
+    return false;
+  }
+  std::string line;
+  while (std::getline(ifs, line)) {
+    if (!line.empty())
+      this->class_list.push_back(line);
+  }
+  try {
+    this->onnx_net = cv::dnn::readNetFromONNX(onnx);
+  } catch (const cv::Exception &e) {
+    std::cerr << "[img] failed to load ONNX: " << onnx << ": " << e.what()
+              << std::endl;
+    return false;
+  }
+  return true;
+}
+
+std::vector<NAVIGATION::RawDetection>
+image_processing::detect_raw(cv::Mat &frame, const std::string &path2labels,
+                             const std::string &path2onnx) {
+  std::vector<NAVIGATION::RawDetection> out;
+  if (class_list.empty() || onnx_net.empty()) {
+    if (!load_model(path2labels, path2onnx))
+      return out;
+  }
+
+  std::vector<cv::Mat> outputs = pre_process_yolo(frame, onnx_net);
+  static bool version_detected = false;
+  static int model_version = 0;
+  if (!version_detected) {
+    model_version = detect_model_version(outputs);
+    this->is_yolov8_model = (model_version == 1);
+    this->is_yolo26_model = (model_version == 2);
+    version_detected = true;
+  }
+
+  const float x_factor = frame.cols / INPUT_WIDTH;
+  const float y_factor = frame.rows / INPUT_HEIGHT;
+
+  std::vector<int> class_ids;
+  std::vector<float> confidences;
+  std::vector<cv::Rect> boxes;
+
+  if (model_version == 0) {
+    // YOLOv5: [1, N, 5+num_classes]
+    cv::Mat output = outputs[0];
+    const int dimensions =
+        (output.dims >= 3) ? output.size[2] : (5 + (int)class_list.size());
+    const int rows = (output.dims >= 3) ? output.size[1] : 25200;
+    float *data = (float *)output.data;
+    for (int i = 0; i < rows; ++i) {
+      float confidence = data[4];
+      if (confidence >= CONFIDENCE_THRESHOLD) {
+        cv::Mat scores(1, (int)class_list.size(), CV_32FC1, data + 5);
+        cv::Point class_id;
+        double max_class_score;
+        cv::minMaxLoc(scores, 0, &max_class_score, 0, &class_id);
+        if (max_class_score > SCORE_THRESHOLD) {
+          confidences.push_back((float)(confidence * max_class_score));
+          class_ids.push_back(class_id.x);
+          float cx = data[0], cy = data[1], w = data[2], h = data[3];
+          int left = int((cx - 0.5f * w) * x_factor);
+          int top = int((cy - 0.5f * h) * y_factor);
+          int width = int(w * x_factor);
+          int height = int(h * y_factor);
+          boxes.push_back(cv::Rect(left, top, width, height));
+        }
+      }
+      data += dimensions;
+    }
+  } else if (model_version == 1) {
+    // YOLOv8: [1, 4+num_classes, N] transposed
+    cv::Mat output = outputs[0];
+    cv::Mat output_transposed;
+    if (output.dims == 3) {
+      cv::Mat reshaped = output.reshape(1, output.size[1]);
+      cv::transpose(reshaped, output_transposed);
+    } else {
+      output_transposed = output;
+    }
+    int rows = output_transposed.rows;
+    int num_classes = (int)class_list.size();
+    for (int i = 0; i < rows; ++i) {
+      float *data = output_transposed.ptr<float>(i);
+      float cx = data[0], cy = data[1], w = data[2], h = data[3];
+      cv::Mat scores(1, num_classes, CV_32FC1, data + 4);
+      cv::Point class_id;
+      double max_class_score;
+      cv::minMaxLoc(scores, 0, &max_class_score, 0, &class_id);
+      if (max_class_score > SCORE_THRESHOLD) {
+        confidences.push_back((float)max_class_score);
+        class_ids.push_back(class_id.x);
+        int left = int((cx - 0.5f * w) * x_factor);
+        int top = int((cy - 0.5f * h) * y_factor);
+        int width = int(w * x_factor);
+        int height = int(h * y_factor);
+        boxes.push_back(cv::Rect(left, top, width, height));
+      }
+    }
+  } else {
+    // YOLO26: [1, 300, 6] end-to-end.
+    cv::Mat output = outputs[0];
+    cv::Mat output_reshaped =
+        (output.dims == 3) ? output.reshape(1, output.size[1]) : output;
+    int n = output_reshaped.rows;
+    for (int i = 0; i < n; ++i) {
+      float *data = output_reshaped.ptr<float>(i);
+      float x1 = data[0], y1 = data[1], x2 = data[2], y2 = data[3];
+      float confidence = data[4];
+      int class_id = static_cast<int>(data[5] + 0.5f);
+      if (x1 > x2)
+        std::swap(x1, x2);
+      if (y1 > y2)
+        std::swap(y1, y2);
+      bool valid_box = (x2 - x1 > 1.0f) && (y2 - y1 > 1.0f);
+      if (confidence > SCORE_THRESHOLD && confidence <= 1.0f && class_id >= 0 &&
+          class_id < (int)class_list.size() && valid_box) {
+        int left = int(x1 * x_factor);
+        int top = int(y1 * y_factor);
+        int width = int((x2 - x1) * x_factor);
+        int height = int((y2 - y1) * y_factor);
+        left = std::max(0, std::min(left, frame.cols - 1));
+        top = std::max(0, std::min(top, frame.rows - 1));
+        width = std::max(1, std::min(width, frame.cols - left));
+        height = std::max(1, std::min(height, frame.rows - top));
+        boxes.push_back(cv::Rect(left, top, width, height));
+        confidences.push_back(confidence);
+        class_ids.push_back(class_id);
+      }
+    }
+  }
+
+  std::vector<int> indices;
+  if (model_version != 2) {
+    cv::dnn::NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD,
+                      indices);
+  } else {
+    // YOLO26 is already NMS-free.
+    for (int i = 0; i < (int)boxes.size(); ++i)
+      indices.push_back(i);
+  }
+
+  for (int idx : indices) {
+    NAVIGATION::RawDetection d;
+    d.class_id = class_ids[idx];
+    if (d.class_id >= 0 && d.class_id < (int)class_list.size())
+      d.class_name = class_list[d.class_id];
+    d.confidence = confidences[idx];
+    d.bbox_px = boxes[idx];
+    // Clamp to image bounds so downstream code can trust the rect.
+    d.bbox_px.x = std::max(0, d.bbox_px.x);
+    d.bbox_px.y = std::max(0, d.bbox_px.y);
+    if (d.bbox_px.x + d.bbox_px.width > frame.cols)
+      d.bbox_px.width = frame.cols - d.bbox_px.x;
+    if (d.bbox_px.y + d.bbox_px.height > frame.rows)
+      d.bbox_px.height = frame.rows - d.bbox_px.y;
+    if (d.bbox_px.width > 0 && d.bbox_px.height > 0)
+      out.push_back(d);
+  }
+  return out;
 }
 
 } // namespace DETECTION_IMAGE_PROCESSING

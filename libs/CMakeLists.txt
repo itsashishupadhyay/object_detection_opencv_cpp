@@ -8,6 +8,8 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 add_library(my_frame_processing STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/image_processing.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/video_processing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/navigation_geometry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/navigation_decision.cpp
 )
 
 # Include directories

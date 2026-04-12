@@ -1,8 +1,10 @@
 #ifndef DISPLAY_IMAGE_H
 #define DISPLAY_IMAGE_H
 
+#include "navigation_geometry.h"
 #include <opencv2/dnn/dnn.hpp>
 #include <opencv2/opencv.hpp>
+#include <vector>
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,6 +63,17 @@ public:
   int detect_objects_in_image(std::string path2image,
                               std::string object_labes_path,
                               std::string onnx_file_path);
+
+  // Load model + labels (idempotent) without running inference. Used by the
+  // navigation code paths so model loading happens once per process.
+  bool load_model(const std::string &path2labels, const std::string &path2onnx);
+
+  // Run YOLO detection and return raw detections instead of drawing them.
+  // Requires load_model() to have been called first (or will auto-load using
+  // the same defaults as run_yolo_obj_detection).
+  std::vector<NAVIGATION::RawDetection>
+  detect_raw(cv::Mat &frame, const std::string &path2labels = "",
+             const std::string &path2onnx = "");
 };
 
 } // namespace DETECTION_IMAGE_PROCESSING
