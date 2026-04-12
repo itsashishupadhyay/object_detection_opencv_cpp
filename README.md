@@ -1,4 +1,4 @@
-# Cassini ISS-NAC Navigation from YOLO Detection — an ICES Research Pipeline
+# Cassini ISS-NAC Navigation from YOLO Detection —  Research Pipeline
 
 This project teaches a YOLOv8 detector to recognize planetary bodies in real Cassini
 Imaging Science Subsystem Narrow Angle Camera (ISS-NAC) frames, and then uses that
