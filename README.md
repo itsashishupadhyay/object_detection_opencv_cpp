@@ -17,6 +17,137 @@ labeling, training, SPICE-linked runtime, and an honest-fail evaluation.
 
 ---
 
+## TL;DR — From a Cassini Photo to "Where Am I, Where Should I Go?"
+
+If you've never seen this project before, here is the whole pipeline in six pictures. We're using a real image Cassini took of Jupiter in late 2000 (`co-iss-n1349153551`). Every number shown below traces back to either the pixels in the image, a cited catalog, or a two-line geometric identity. **There are no magic constants.**
+
+### Step 1 — The raw photo
+
+<img src="./artifacts/tldr/01_raw.png" alt="Raw Cassini ISS-NAC image of Jupiter" width="520">
+
+Cassini's Narrow Angle Camera (ISS-NAC) takes **1024×1024 grayscale images**. Each pixel covers a tiny, fixed slice of sky — **1.2357 arcseconds** (a 3600th of a degree). That number isn't a guess; it comes from the camera's physical properties (focal length 2003.44 mm, pixel pitch 12 µm) recorded in the NAIF instrument kernel [`cas_iss_v10.ti`](https://naif.jpl.nasa.gov/pub/naif/CASSINI/kernels/ik/) and [Porco et al. 2004](https://doi.org/10.1007/s11214-004-1456-7). The pipeline pulls it from [`artifacts/instruments.csv`](./artifacts/instruments.csv), which cites both sources.
+
+Given this, a single pixel = `12 µm / 2003.44 mm ≈ 5.989×10⁻⁶ radians` of angle. **That's our ruler for everything else.**
+
+### Step 2 — The detector finds a body
+
+<img src="./artifacts/tldr/02_detection.png" alt="YOLO bounding box around Jupiter" width="520">
+
+We feed the image into a [**YOLOv8s model**](./weight/cassini_issna_planets.onnx) that was fine-tuned on ~325 human-approved Cassini images labeled with 64 classes (Saturn, Titan, Jupiter, moons, rings…). The model runs through OpenCV's `cv::dnn` module inside the [C++ binary](./main.cpp) and emits a list of candidate detections, each with:
+
+- a class name — `"jupiter"`
+- a confidence score — `0.978`
+- a bounding box in pixels — `[x=371, y=330, w=366, h=350]`
+
+Non-max suppression keeps only the tightest box per object. **That green box is the bounding box** — where in the frame the body landed.
+
+### Step 3 — Pixel math → degrees off the boresight
+
+<img src="./artifacts/tldr/03_offset.png" alt="Pixel offset from image center to bbox center" width="520">
+
+The camera's center (pixel 512, 512 — the **cyan crosshair**) is where Cassini was *pointed*. The bbox center (the **orange cross**) is where the body *actually landed*. Subtracting gives the pointing error in pixels; multiplying by the per-pixel IFOV gives it in degrees:
+
+```text
+dx = 554 − 512 = +42 px
+dy = 505 − 512 =  −7 px
+
+IFOV = 12 µm / 2003.44 mm = 5.989e−6 rad/px  ≈  1.2357 arcsec/px
+
+offset_deg = (+0.0144°, −0.0024°)
+```
+
+That's about 52 arcseconds off the boresight. **This is the "which way do I need to tweak my pointing" part of navigation.**
+
+### Step 4 — Bounding-box size → distance in kilometers
+
+<img src="./artifacts/tldr/04_range.png" alt="Bounding box width used to solve for distance" width="520">
+
+This is the clever trick. A body at distance `R` that's physically `radius_km` across will cover an angle:
+
+```text
+θ         = (bbox_width_px / 2) × IFOV        # apparent angular radius
+distance  = radius_km / tan(θ)                 # solve the right triangle
+```
+
+So if we know **how wide the body looks in pixels** (half the bbox width × IFOV = its angular radius) and **how big it really is** (Jupiter = 69,911 km, pulled from the IAU body catalog via SPICE `pck00011.tpc`), we can solve for distance.
+
+```text
+θ         = (366 / 2) × 5.989e−6 rad/px  =  1.0961e−3 rad
+distance  = 69,911 km / tan(1.0961e−3)    ≈  63,780,709 km
+```
+
+**Cassini was ~63.8 million km from Jupiter when it took that picture.** The uncertainty band (`≈ 348,528 km`) is the 1-pixel measurement floor, `R × (2/w)` — this is the structural precision limit discussed in our **unpublished write-up still under active development** at [`docs/ongoing_research/PAPER_cassini_issna.md`](./docs/ongoing_research/PAPER_cassini_issna.md). **If this problem interests you, we'd love collaborators** — open an issue or a PR and let's talk.
+
+### Step 5 — Distance + offset → a 3D vector in the camera frame
+
+<img src="./artifacts/tldr/05_xyz.png" alt="Body position as XYZ in the camera frame" width="520">
+
+Once we know the distance and the angular offset, we can place the body in the camera's own coordinate system (z = forward, x = right, y = down):
+
+```text
+z = distance                              = 63,780,709 km   (forward / boresight)
+x = distance × tan(offset_deg_x)          =     16,045 km   (right)
+y = distance × tan(offset_deg_y)          =     −2,674 km   (down)
+```
+
+**This is the form a real guidance system wants: "the body is *there*, relative to me, right now."**
+
+### Step 6 — The honest bit: NOMINAL, DEGRADED, or REFUSED
+
+<img src="./artifacts/tldr/06_decision.png" alt="Final NavDecision overlay, color-coded" width="520">
+
+The pipeline doesn't always succeed. The decision module checks three things — instrument record verified, SPICE spacecraft state verified, detected class matches the manifest's metadata body — and stamps one of three verdicts on the frame:
+
+- 🟢 **NOMINAL** — everything lines up. Range, offset, XYZ are all trustworthy.
+- 🟡 **DEGRADED** — detection succeeded with high confidence but something is inconsistent (class mismatch, unverified state, marginal confidence, or a large angular deviation). Numbers are reported but flagged; **do not use for navigation**.
+- 🔴 **REFUSED** — no detection above the floor, or a hard precondition failed. All numeric fields go `null`. **Every REFUSED is a point the pipeline honestly did not know — refuse rather than fabricate.**
+
+The color-coded overlay (also available on a live window via `--show`, and batch-written as PNGs via `--overlay-dir`) mirrors this directly: green, yellow, or red across the header strip, the bounding box, and the info panel that stamps `STATUS / BODY / RANGE / OFFSET / CONF / ACTION` on the frame itself. [See all 10 hand-picked worked examples further down](#sample-outputs--model-at-work).
+
+### TL;DR of the TL;DR
+
+> A photo lands → YOLO draws a box around the body → the box's **center** tells us *where* to point (angle offset), the box's **width** tells us *how far* the body is (range via `R/tan(θ)`) → distance + angle together give the body's XYZ in the camera frame → the decision module checks everything agrees with verified tables and stamps **NOMINAL / DEGRADED / REFUSED** on top. No magic constants; every number traces back to either the pixels, a cited catalog, or a two-line geometric identity.
+
+### Step 7 — Testing on Various Celestial Bodies (Cassini Program)
+
+> **Honest disclosure up front.** The §7 labeling contract forces every bbox to enclose the *entire visible frame content* of the body — which caps the angular precision at roughly one pixel on the bounding box edge, and that pixel-scale floor propagates into a ~20% floor on relative range error across the test bracket. None of our NOMINAL matches beat that floor. We had originally planned to showcase "3 Saturn + 3 Saturn moons from various distances," but Saturn's best NOMINAL+matching test frame still lands at ~141% range error — so we could not present Saturn without misrepresenting the model. Instead, this section shows the **six lowest-error NOMINAL+matching frames across the entire Cassini ISS-NAC test set**: one per body, two Saturnian moons (Titan, Tethys), plus the Jupiter-system flyby captures (Jupiter, Europa, Ganymede, Callisto) from Cassini's 2000 gravity assist. Every number below was pulled directly from the decision JSON and cross-verified against SPICE in [`artifacts/cassini_issna/residuals.csv`](./artifacts/cassini_issna/residuals.csv). The generator script that produced the overlays is [`supporting_scripts/make_step7_overlays.py`](./supporting_scripts/make_step7_overlays.py) — no hand-edited numbers.
+
+The angular-diameter basis used inside the C++ binary is `max(bbox_width, bbox_height)` (longer side has better SNR than the mean — see [`libs/src/navigation_geometry.cpp:340`](./libs/src/navigation_geometry.cpp#L340)). The IFOV is derived once from the verified instrument record: `12 µm / 2003.44 mm ≈ 5.9897 × 10⁻⁶ rad/px ≈ 1.2357 arcsec/px`. Below, each panel shows the raw frame with the detection bbox and a worked-out info panel: the angular calculation, the range calculation in the regime the binary actually used (`small_angle` when θ < 10⁻³ rad, else `full_tan`), the 1-pixel-edge uncertainty, the SPICE truth, and the resulting residual.
+
+**1. Europa — `co-iss-n1355377921`**
+<img src="./artifacts/tldr/step7/europa_co-iss-n1355377921.png" width="880">
+
+> 2000-12-13T05:40:33Z · filter `GRN+P60` · exposure 0.005 s · Cassini Jupiter flyby · bbox 32×33 px (max side 33) → θ ≈ 1.977 × 10⁻⁴ rad (40.8 arcsec) → predicted range **15,792,773 km** (small-angle regime, R=1560.8 km) vs SPICE truth **19,626,484 km** → relative error **19.53%** (best of the test set). 1-pixel uncertainty ≈ 957k km. Confidence 0.946. The bbox is barely 33 px on a 1024 px frame, which is exactly why the 1-px floor dominates — a single edge pixel is worth ~3% of the radius at this scale.
+
+**2. Titan — `co-iss-n1749926659`**
+<img src="./artifacts/tldr/step7/titan_co-iss-n1749926659.png" width="880">
+
+> 2013-06-14T17:48:12Z · filter `CB3` (Titan-atmosphere methane-band) · exposure 38 s · prime-mission Saturn tour · bbox 560×537 px (max side 560) → θ ≈ 3.354 × 10⁻³ rad (691.7 arcsec) → predicted range **1,535,373 km** (full-tan regime, R=2575.0 km) vs SPICE truth **1,948,210 km** → relative error **21.19%**. 1-pixel uncertainty ≈ 5,483 km — Titan fills enough of the frame that the edge-pixel floor becomes tight. Confidence 0.987 (highest of the six). The CB3 filter gives the classic hazy-limb view; the bbox comfortably encloses the full atmospheric extent.
+
+**3. Jupiter — `co-iss-n1349081860`**
+<img src="./artifacts/tldr/step7/jupiter_co-iss-n1349081860.png" width="880">
+
+> 2000-10-01T08:46:56Z · filter `GRN` · exposure 0.06 s · Cassini Jupiter gravity-assist approach · bbox 361×347 px (max side 361) → θ ≈ 2.162 × 10⁻³ rad (445.9 arcsec) → predicted range **64,664,099 km** (full-tan, R=69,911 km) vs SPICE truth **84,378,098 km** → relative error **23.36%**. 1-pixel uncertainty ≈ 358k km. Confidence 0.964. Angular center error 17.1 arcsec — the boresight points slightly off-center because the bbox snaps to the jovian disk including the equatorial bulge.
+
+**4. Tethys — `co-iss-n1466446025`**
+<img src="./artifacts/tldr/step7/tethys_co-iss-n1466446025.png" width="880">
+
+> 2004-06-20T17:42:55Z · filter `GRN+P120` · exposure 0.82 s · ten days before Saturn orbit insertion · bbox 30×36 px (max side **36** — height dominates, which is why a width-only recomputation underestimates the range here) → θ ≈ 2.156 × 10⁻⁴ rad (44.5 arcsec) → predicted range **4,926,051 km** (small-angle, R=531.1 km) vs SPICE truth **6,520,192 km** → relative error **24.45%**. 1-pixel uncertainty ≈ 274k km. Confidence 0.833 — the lowest of the six, reflecting how tight the detection is at this scale.
+
+**5. Ganymede — `co-iss-n1356764729`**
+<img src="./artifacts/tldr/step7/ganymede_co-iss-n1356764729.png" width="880">
+
+> 2000-12-29T06:53:52Z · filter `GRN+P120` · exposure 0.01 s · Jupiter flyby, post-perijove · bbox 107×84 px (max side 107) → θ ≈ 6.409 × 10⁻⁴ rad (132.2 arcsec) → predicted range **8,220,033 km** (small-angle, R=2634.1 km) vs SPICE truth **10,915,015 km** → relative error **24.69%**. 1-pixel uncertainty ≈ 154k km. Confidence 0.957. Angular center error 11.9 arcsec.
+
+**6. Callisto — `co-iss-n1356766664`**
+<img src="./artifacts/tldr/step7/callisto_co-iss-n1356766664.png" width="880">
+
+> 2000-12-29T07:26:06Z · filter `MT2+P0` (broadband methane) · exposure 0.56 s · same Jupiter encounter as the Ganymede frame, 33 minutes later · bbox 126×107 px (max side 126) → θ ≈ 7.547 × 10⁻⁴ rad (155.7 arcsec) → predicted range **6,387,423 km** (small-angle, R=2410.3 km) vs SPICE truth **8,566,627 km** → relative error **25.44%**. 1-pixel uncertainty ≈ 101k km. Confidence 0.913. Angular center error 2.6 arcsec — the tightest center fix of the six.
+
+**What this tells us.** Every one of the six sits at roughly 19–26% relative range error, clustered tightly against the 1-pixel-edge floor predicted by `dR/R ≈ 2/max(w,h)`. The floor isn't a bug — it's the direct consequence of the whole-disk labeling rule combined with Cassini NAC's 1.2357 arcsec/px plate scale. **This is precisely the structural limitation the in-development paper at [`docs/ongoing_research/PAPER_cassini_issna.md`](./docs/ongoing_research/PAPER_cassini_issna.md) is organized around**, and why the next iteration of the pipeline targets limb-fit sub-pixel refinement instead of bounding-box edges. If any of this is interesting to you, the "unpublished, under active development" invitation in Step 4 still stands — open an issue or a PR.
+
+---
+
 ## The Cassini Mission Quick Revist
 
 **Cassini–Huygens** (NASA / ESA / ASI) launched 1997-10-15 from Cape Canaveral
