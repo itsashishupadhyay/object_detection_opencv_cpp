@@ -34,6 +34,15 @@ void help_menu() {
                "an annotated PNG\n";
   std::cout << "                    (<image_id>_overlay.png) into directory "
                "<d>.\n";
+  std::cout << "  --show            When used with --nav-decision, open an "
+               "OpenCV window showing\n";
+  std::cout << "                    the frame with the NavDecision stamped on "
+               "it (status,\n";
+  std::cout << "                    body, range, offset, confidence, action). "
+               "Green = high\n";
+  std::cout << "                    confidence NOMINAL; yellow = DEGRADED or "
+               "high deviation;\n";
+  std::cout << "                    red = REFUSED. Blocks on keypress.\n";
   std::cout << "\n";
   std::cout << "Examples:\n";
   std::cout << "  ./program_name -i -p /path/to/image.jpg\n";
@@ -59,16 +68,53 @@ bool contains_ci(const std::string &hay, const std::string &needle) {
   return it != hay.end();
 }
 
-// Render a per-image overlay: draws every detection's bbox on a copy of the
-// input frame, stamps the top class + confidence + NavDecision status, and
-// writes to <overlay_dir>/<image_id>_overlay.png. Refuses silently (but logs
-// to stderr) if anything goes wrong — the overlay is a cosmetic output, it
-// must not affect the NavDecision JSON contract.
-static void
-render_nav_overlay(const cv::Mat &frame,
-                   const std::vector<NAVIGATION::RawDetection> &dets,
-                   const std::string &status_label, const std::string &image_id,
-                   const std::filesystem::path &overlay_path) {
+// Color policy for the overlay. Green = we trust this fix; yellow = the
+// detection landed but something is off (class mismatch, unverified state,
+// marginal confidence, or large angular deviation off boresight); red = we
+// refused to produce a fix at all. Centralised so the still-image path and
+// the (future) video path paint identically.
+//
+// thresholds (documented, not magic):
+//   conf_high   = 0.70   — below this we downgrade NOMINAL to yellow
+//   offset_warn = 1.0°   — above this, even a NOMINAL is visually warned
+static cv::Scalar nav_overlay_color(const NAVIGATION::NavDecision &dec) {
+  const cv::Scalar green(0, 220, 0);
+  const cv::Scalar yellow(0, 220, 220);
+  const cv::Scalar red(0, 0, 220);
+
+  if (dec.status == NAVIGATION::DecisionStatus::REFUSED)
+    return red;
+  if (dec.status == NAVIGATION::DecisionStatus::DEGRADED)
+    return yellow;
+
+  // NOMINAL — check whether the fix is actually tight.
+  if (dec.decision_confidence < 0.70)
+    return yellow;
+  if (dec.fix.has_value()) {
+    const auto &f = dec.fix.value();
+    double offset_deg_mag =
+        std::hypot(f.center_offset_deg.x, f.center_offset_deg.y);
+    if (offset_deg_mag > 1.0)
+      return yellow;
+  }
+  return green;
+}
+
+// Build an annotated canvas from a frame + detections + decision. Pure
+// function: no I/O, no globals. This is the single entry point used by both
+// the still-image path (writes to disk, optionally shows in a window) and by
+// any future video loop (calls this per frame, then imshow + waitKey(1)).
+//
+// The canvas draws: every detection's bbox (top one thick), a top-left header
+// strip with status + image_id + top class/conf, and a bottom-left info panel
+// with the key NavDecision fields stamped on the frame itself (body, range ±
+// uncertainty, angular offset, confidence, action). Color follows
+// nav_overlay_color() — green / yellow / red per the status+confidence+offset
+// rule documented above.
+static cv::Mat
+build_nav_overlay_canvas(const cv::Mat &frame,
+                         const std::vector<NAVIGATION::RawDetection> &dets,
+                         const NAVIGATION::NavDecision &dec) {
   cv::Mat canvas;
   if (frame.channels() == 1) {
     cv::cvtColor(frame, canvas, cv::COLOR_GRAY2BGR);
@@ -76,27 +122,22 @@ render_nav_overlay(const cv::Mat &frame,
     canvas = frame.clone();
   }
 
-  cv::Scalar box_color;
-  if (status_label == "NOMINAL") {
-    box_color = cv::Scalar(0, 220, 0); // green
-  } else if (status_label == "DEGRADED") {
-    box_color = cv::Scalar(0, 200, 220); // amber
-  } else {
-    box_color = cv::Scalar(0, 0, 220); // red
-  }
+  const cv::Scalar color = nav_overlay_color(dec);
+  const cv::Scalar text_black(0, 0, 0);
+  const cv::Scalar panel_bg(25, 25, 25);
+  const cv::Scalar panel_fg(240, 240, 240);
 
-  // Find the top detection once for the header label.
+  // Top detection.
   const NAVIGATION::RawDetection *top = nullptr;
   for (const auto &d : dets) {
-    if (!top || d.confidence > top->confidence) {
+    if (!top || d.confidence > top->confidence)
       top = &d;
-    }
   }
 
-  // Draw every detection (thin box) so viewers can see runner-ups.
+  // Per-detection boxes.
   for (const auto &d : dets) {
     const bool is_top = (&d == top);
-    cv::rectangle(canvas, d.bbox_px, box_color, is_top ? 3 : 1);
+    cv::rectangle(canvas, d.bbox_px, color, is_top ? 3 : 1);
     std::ostringstream lbl;
     lbl << d.class_name << " " << std::fixed;
     lbl.precision(2);
@@ -106,16 +147,16 @@ render_nav_overlay(const cv::Mat &frame,
         cv::getTextSize(lbl.str(), cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &base);
     int y0 = std::max(d.bbox_px.y - 4, ts.height + 4);
     cv::rectangle(canvas, cv::Point(d.bbox_px.x, y0 - ts.height - 4),
-                  cv::Point(d.bbox_px.x + ts.width + 4, y0 + 2), box_color,
+                  cv::Point(d.bbox_px.x + ts.width + 4, y0 + 2), color,
                   cv::FILLED);
     cv::putText(canvas, lbl.str(), cv::Point(d.bbox_px.x + 2, y0 - 2),
-                cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1,
-                cv::LINE_AA);
+                cv::FONT_HERSHEY_SIMPLEX, 0.5, text_black, 1, cv::LINE_AA);
   }
 
-  // Header strip with status + image_id so it's self-labeling.
+  // Header strip — status + image_id + top class/conf.
+  const char *status_str = NAVIGATION::status_to_str(dec.status);
   std::ostringstream hdr;
-  hdr << status_label << "  " << image_id;
+  hdr << status_str << "  " << dec.image_id;
   if (top) {
     hdr << "  top=" << top->class_name << "(" << std::fixed;
     hdr.precision(2);
@@ -127,12 +168,88 @@ render_nav_overlay(const cv::Mat &frame,
   cv::Size hs =
       cv::getTextSize(hdr.str(), cv::FONT_HERSHEY_SIMPLEX, 0.55, 1, &hbase);
   cv::rectangle(canvas, cv::Point(0, 0),
-                cv::Point(hs.width + 12, hs.height + 10), box_color,
-                cv::FILLED);
+                cv::Point(hs.width + 12, hs.height + 10), color, cv::FILLED);
   cv::putText(canvas, hdr.str(), cv::Point(6, hs.height + 4),
-              cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(0, 0, 0), 1,
-              cv::LINE_AA);
+              cv::FONT_HERSHEY_SIMPLEX, 0.55, text_black, 1, cv::LINE_AA);
 
+  // Bottom-left info panel with the nav decision stamped on the frame.
+  std::vector<std::string> lines;
+  lines.push_back(std::string("STATUS : ") + status_str);
+  if (dec.fix.has_value()) {
+    const auto &f = dec.fix.value();
+    {
+      std::ostringstream s;
+      s << "BODY   : " << f.body;
+      lines.push_back(s.str());
+    }
+    {
+      std::ostringstream s;
+      s << std::fixed;
+      s.precision(0);
+      s << "RANGE  : " << f.range_km << " km  +/- " << f.range_uncertainty_km;
+      lines.push_back(s.str());
+    }
+    {
+      std::ostringstream s;
+      s << std::fixed;
+      s.precision(4);
+      s << "OFFSET : " << f.center_offset_deg.x << " deg, "
+        << f.center_offset_deg.y << " deg";
+      lines.push_back(s.str());
+    }
+  } else {
+    lines.push_back("BODY   : -");
+    lines.push_back("RANGE  : -");
+    lines.push_back("OFFSET : -");
+  }
+  {
+    std::ostringstream s;
+    s << std::fixed;
+    s.precision(3);
+    s << "CONF   : " << dec.decision_confidence;
+    lines.push_back(s.str());
+  }
+  lines.push_back(std::string("ACTION : ") + dec.action);
+
+  // Measure and draw panel.
+  const double fs = 0.5;
+  const int pad = 6;
+  const int line_h = 18;
+  int panel_w = 0;
+  for (const auto &ln : lines) {
+    int b = 0;
+    cv::Size ts = cv::getTextSize(ln, cv::FONT_HERSHEY_SIMPLEX, fs, 1, &b);
+    panel_w = std::max(panel_w, ts.width);
+  }
+  panel_w += 2 * pad;
+  int panel_h = static_cast<int>(lines.size()) * line_h + 2 * pad;
+  int px = 6;
+  int py = canvas.rows - panel_h - 6;
+  if (py < hs.height + 14) // don't collide with header strip
+    py = hs.height + 14;
+
+  cv::Rect panel(px, py, panel_w, panel_h);
+  // Tinted background so text is always readable on bright Saturn/Jupiter.
+  cv::Mat roi = canvas(panel & cv::Rect(0, 0, canvas.cols, canvas.rows));
+  cv::Mat tint(roi.size(), roi.type(), panel_bg);
+  cv::addWeighted(roi, 0.35, tint, 0.65, 0.0, roi);
+  // Color stripe on the left edge = status color.
+  cv::rectangle(canvas, cv::Rect(px, py, 4, panel_h), color, cv::FILLED);
+  // Text.
+  for (size_t i = 0; i < lines.size(); ++i) {
+    int ty = py + pad + static_cast<int>(i + 1) * line_h - 4;
+    cv::putText(canvas, lines[i], cv::Point(px + 10, ty),
+                cv::FONT_HERSHEY_SIMPLEX, fs, panel_fg, 1, cv::LINE_AA);
+  }
+
+  return canvas;
+}
+
+// Thin writer — keeps the old "write overlay PNG to a directory" behavior for
+// the batch path. Never fatal; overlay is a cosmetic output and must not
+// affect the NavDecision JSON contract.
+static void save_nav_overlay(const cv::Mat &canvas,
+                             const std::filesystem::path &overlay_path) {
   try {
     if (!cv::imwrite(overlay_path.string(), canvas)) {
       std::cerr << "[overlay] imwrite failed for " << overlay_path << "\n";
@@ -142,11 +259,28 @@ render_nav_overlay(const cv::Mat &frame,
   }
 }
 
+// Open a window and show the canvas. Blocks on still-image runs (waitKey(0)).
+// When we extend this to video, the caller will drive a frame loop directly
+// and use waitKey(1) — build_nav_overlay_canvas() is already pure enough to
+// be reused per-frame without refactoring.
+static void show_nav_overlay(const cv::Mat &canvas,
+                             const std::string &window_title) {
+  try {
+    cv::namedWindow(window_title, cv::WINDOW_NORMAL);
+    cv::imshow(window_title, canvas);
+    cv::waitKey(0);
+    cv::destroyWindow(window_title);
+  } catch (const cv::Exception &e) {
+    std::cerr << "[overlay] imshow failed: " << e.what() << "\n";
+  }
+}
+
 int run_nav_pipeline(const std::string &path2file,
                      const std::string &path2label,
                      const std::string &path2onnxmodel,
                      const std::string &mission, const std::string &instrument,
-                     bool want_decision, const std::string &overlay_dir) {
+                     bool want_decision, const std::string &overlay_dir,
+                     bool show_window) {
   namespace fs = std::filesystem;
 
   if (mission.empty() || instrument.empty()) {
@@ -276,17 +410,20 @@ int run_nav_pipeline(const std::string &path2file,
       ++refused;
     }
 
-    // Optional annotated PNG — never fatal.
-    if (!overlay_dir.empty()) {
-      fs::path od(overlay_dir);
-      std::error_code ec;
-      fs::create_directories(od, ec);
-      const char *status_str =
-          (dec.status == NAVIGATION::DecisionStatus::NOMINAL)    ? "NOMINAL"
-          : (dec.status == NAVIGATION::DecisionStatus::DEGRADED) ? "DEGRADED"
-                                                                 : "REFUSED";
-      render_nav_overlay(frame, detections, status_str, image_id,
-                         od / (image_id + "_overlay.png"));
+    // Optional annotated PNG and/or on-screen display — never fatal. Both
+    // share one canvas, so writing to disk and showing in a window are free
+    // to coexist without double-rendering.
+    if (!overlay_dir.empty() || show_window) {
+      cv::Mat canvas = build_nav_overlay_canvas(frame, detections, dec);
+      if (!overlay_dir.empty()) {
+        fs::path od(overlay_dir);
+        std::error_code ec;
+        fs::create_directories(od, ec);
+        save_nav_overlay(canvas, od / (image_id + "_overlay.png"));
+      }
+      if (show_window) {
+        show_nav_overlay(canvas, "NavDecision — " + image_id);
+      }
     }
   } else {
     // --nav-fix: emit one fix per detection (usually just the top).
@@ -338,6 +475,7 @@ int main(int argc, char **argv) {
   bool object_detection = false;
   bool nav_fix_flag = false;
   bool nav_decision_flag = false;
+  bool show_flag = false;
   std::string overlay_dir;
 
   for (int i = 1; i < argc; i++) {
@@ -405,6 +543,8 @@ int main(int argc, char **argv) {
         std::cout << "Error: --overlay-dir requires a value.\n";
         return 1;
       }
+    } else if (arg == "--show") {
+      show_flag = true;
     } else {
       std::cout << "Error: Unknown argument '" << arg << "'.\n";
       return 1;
@@ -419,7 +559,8 @@ int main(int argc, char **argv) {
   // Navigation modes route through a separate pipeline.
   if (nav_fix_flag || nav_decision_flag) {
     return run_nav_pipeline(path2file, path2label, path2onnxmodel, mission,
-                            instrument, nav_decision_flag, overlay_dir);
+                            instrument, nav_decision_flag, overlay_dir,
+                            show_flag);
   }
 
   if (!imageFlag && !videoFlag && !webcamFlag) {
