@@ -17,13 +17,13 @@ labeling, training, SPICE-linked runtime, and an honest-fail evaluation.
 
 ---
 
-## The Cassini Mission in Three Paragraphs
+## The Cassini Mission Quick Revist
 
 **Cassini–Huygens** (NASA / ESA / ASI) launched 1997-10-15 from Cape Canaveral
 aboard a Titan IVB/Centaur. It performed gravity assists at **Venus** (1998, 1999),
 **Earth** (1999), and **Jupiter** (2000–2001), reaching Saturn on 2004-07-01 for a
 13-year science mission. It ended on 2017-09-15 with a controlled atmospheric entry
-into Saturn — the "Grand Finale."
+into Saturn, the "Grand Finale."
 
 Over its mission Cassini flew by and repeatedly imaged **Saturn and its rings**,
 the large moons **Titan, Enceladus, Mimas, Tethys, Dione, Rhea, Hyperion, Iapetus,
