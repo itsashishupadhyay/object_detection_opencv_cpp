@@ -1,25 +1,47 @@
-# Cassini ISS-NAC Navigation from YOLO Detection —  Research Pipeline
+# Cassini ISS-NAC Navigation from YOLO Detection — Research Pipeline
 
-This project teaches a YOLOv8 detector to recognize planetary bodies in real Cassini
-Imaging Science Subsystem Narrow Angle Camera (ISS-NAC) frames, and then uses that
-detection together with verified spacecraft geometry (from JPL's SPICE toolkit) to
-produce a per-image **navigation decision**: `NOMINAL`, `DEGRADED`, or `REFUSED`.
-The goal is an end-to-end, citation-bound demonstration that a small vision model
-can participate in spacecraft navigation **without fabricating numbers** — every
-range, every residual, every refusal has a traceable source.
+> **Optical spacecraft navigation from deep-space imagery, end-to-end.** A YOLOv8 detector, OpenCV DNN inference in C++, and JPL's SPICE toolkit come together to turn a single Cassini Narrow Angle Camera photograph into a fully-traceable, citation-bound navigation decision — `NOMINAL`, `DEGRADED`, or `REFUSED`. No magic constants. No fabricated ranges. Every number traces back to the pixels, a cited catalog, or a two-line geometric identity.
 
-This repository is **built on top of**
-[`doleron/opencv_cpp`](https://github.com/doleron/opencv_cpp),
-a production-ready C++ / OpenCV DNN YOLO inference project. The upstream README is
-preserved verbatim as [`README_UPSTREAM.md`](./README_UPSTREAM.md). Everything in
-this README is the research layer we added on top: mission-specific verification,
-labeling, training, SPICE-linked runtime, and an honest-fail evaluation.
+**Topics**: spacecraft navigation · optical navigation (OpNav) · planetary imaging · YOLOv8 object detection · OpenCV DNN · C++17 computer vision · JPL NAIF SPICE · Cassini–Huygens mission · ISS-NAC Narrow Angle Camera · deep learning for astronomy · real-world YOLO training pipeline · reproducible research · honest-fail science
+
+---
+
+### What this project is, in one paragraph
+
+This repository teaches a YOLOv8 detector to recognize planetary bodies — Saturn, Jupiter, Titan, Europa, Ganymede, Callisto, Tethys, and 57 others — in real [Cassini Imaging Science Subsystem](https://pds-imaging.jpl.nasa.gov/) Narrow Angle Camera (ISS-NAC) frames pulled from NASA's [OPUS](https://opus.pds-rings.seti.org/) archive. It then combines each detection with verified spacecraft geometry from the [JPL NAIF SPICE toolkit](https://naif.jpl.nasa.gov/naif/) to produce a per-image **`NavDecision`**: a compact JSON object containing the body's range in kilometers, a 3D position vector in the camera frame, a propagated uncertainty bound, the full SPICE kernel list, the primary-source instrument citation, and a verdict of `NOMINAL`, `DEGRADED`, or `REFUSED`. The goal is an end-to-end, citation-bound demonstration that a small vision model can participate in spacecraft navigation **without fabricating numbers**.
+
+This repository is **built on top of** [`doleron/opencv_cpp`](https://github.com/doleron/opencv_cpp) — a production-ready C++/OpenCV DNN YOLO inference project. The upstream README is preserved verbatim as [`README_UPSTREAM.md`](./README_UPSTREAM.md). Everything in *this* README is the research layer we added on top: mission-specific instrument verification, auto-labeling with a human review gate, CPU-only training, a SPICE-linked C++ runtime, and an unflinching honest-fail evaluation.
+
+### Who this is for
+
+- **Spacecraft GNC & OpNav engineers** curious whether modern object detectors can contribute to optical navigation without overclaiming.
+- **Computer vision researchers** who want a real, non-toy YOLOv8 training pipeline on scientific imagery — with all the verification, labeling, and auditing scaffolding around it.
+- **Planetary scientists & students** looking for a worked example of SPICE-grounded geometry tied to actual mission data.
+- **Open-source contributors** interested in reproducible, provenance-first ML pipelines. If you find this problem interesting, the paper at [`docs/ongoing_research/PAPER_cassini_issna.md`](./docs/ongoing_research/PAPER_cassini_issna.md) is under active development — issues and PRs welcome.
+
+### Table of contents
+
+1. [TL;DR — from a Cassini photo to "where am I?" in six pictures](#tldr--from-a-cassini-photo-to-where-am-i-where-should-i-go)
+2. [Testing on various celestial bodies (Step 7)](#step-7--testing-on-various-celestial-bodies-cassini-program)
+3. [The Cassini mission — quick revisit](#the-cassini-mission--quick-revisit)
+4. [What this repository actually does](#what-this-repository-actually-does)
+5. [Why SPICE](#why-spice)
+6. [How we verified the instrument](#how-we-verified-the-instrument)
+7. [Our thought process, step by step](#our-thought-process-step-by-step)
+8. [Sample outputs — model at work](#sample-outputs--model-at-work)
+9. [Honest results](#honest-results)
+10. [Repository layout](#repository-layout)
+11. [How to build & run](#how-to-build)
+12. [What a NavDecision output actually means](#what-a-navdecision-output-actually-means)
+13. [Reproducing from a fresh clone](#reproducing-the-pipeline-from-a-fresh-clone)
+14. [Provenance and honesty](#provenance-and-honesty)
+15. [Acknowledgments and upstream](#acknowledgments-and-upstream)
 
 ---
 
 ## TL;DR — From a Cassini Photo to "Where Am I, Where Should I Go?"
 
-If you've never seen this project before, here is the whole pipeline in six pictures. We're using a real image Cassini took of Jupiter in late 2000 (`co-iss-n1349153551`). Every number shown below traces back to either the pixels in the image, a cited catalog, or a two-line geometric identity. **There are no magic constants.**
+**New here? Start with this section.** The whole pipeline, in six pictures, on a real photograph Cassini took of Jupiter on approach in late 2000 (`co-iss-n1349153551`). By the end of this walkthrough you will know, to the kilometer, how far the spacecraft was from Jupiter — and exactly which pixel, which catalog entry, and which two-line identity each number came from. **There are no magic constants. If you can't trace it, we didn't use it.**
 
 ### Step 1 — The raw photo
 
@@ -148,7 +170,7 @@ The angular-diameter basis used inside the C++ binary is `max(bbox_width, bbox_h
 
 ---
 
-## The Cassini Mission Quick Revist
+## The Cassini Mission — Quick Revisit
 
 **Cassini–Huygens** (NASA / ESA / ASI) launched 1997-10-15 from Cape Canaveral
 aboard a Titan IVB/Centaur. It performed gravity assists at **Venus** (1998, 1999),
